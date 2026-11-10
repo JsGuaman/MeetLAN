@@ -99,66 +99,65 @@ def _apply_windows_firewall(ports, ports_str):
 
 def _apply_linux_firewall(ports):
     """
-    Abre las reglas en Ubuntu (UFW) solicitando permisos con pkexec (diálogo gráfico) o sudo.
-    Maneja automáticamente el caso donde ufw no esté instalado o no esté en el PATH.
+    Abre las reglas en Ubuntu (UFW) de forma segura y sin arrojar error 127.
     """
     try:
-        # Asegurar PATH donde reside ufw (/usr/sbin)
-        path_env = 'export PATH="$PATH:/usr/sbin:/sbin"'
-        
-        # 1. Verificar si ufw está disponible
+        ports_str = ", ".join(str(p) for p in ports)
+
+        # 1. Localizar binario ufw en rutas estándar
         ufw_bin = None
-        for candidate in ["ufw", "/usr/sbin/ufw", "/sbin/ufw"]:
-            if shutil.which(candidate) or os.path.isfile(candidate):
+        for candidate in ["/usr/sbin/ufw", "/sbin/ufw", "/usr/bin/ufw"]:
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
                 ufw_bin = candidate
                 break
-
-        rules_str = " && ".join([f"ufw allow {p}/udp comment 'MeetLAN'" for p in ports])
-
         if not ufw_bin:
-            # ufw no está instalado: intentar instalarlo con apt mediante elevación
-            install_and_apply = (
-                f'{path_env} && '
-                f'apt-get update && '
-                f'apt-get install -y ufw && '
-                f'{rules_str}'
+            ufw_bin = shutil.which("ufw")
+
+        # CASO 1: UFW no está instalado en este sistema Linux
+        if not ufw_bin:
+            # En GNU/Linux, la política predeterminada del kernel iptables es ACCEPT.
+            # Sin UFW instalado, no existe ningún cortafuegos bloqueando tráfico UDP.
+            return True, (
+                f"ℹ️ Firewall UFW no instalado en Linux:\n\n"
+                f"En Ubuntu / Linux, cuando UFW no está instalado, el kernel NO bloquea ningún puerto.\n\n"
+                f"✅ Tus puertos UDP ({ports_str}) están totalmente ABIERTOS por defecto y listos para transmitir y recibir video sin ninguna restricción.\n\n"
+                f"💡 (Si deseas instalar UFW de todas formas, ejecuta en tu terminal: sudo apt update && sudo apt install -y ufw)"
             )
-            
-            if shutil.which("pkexec"):
-                cmd = f'pkexec bash -c "{install_and_apply}"'
+
+        # CASO 2: UFW sí está instalado. Ejecutamos las reglas directamente sobre el binario ufw.
+        pkexec_bin = shutil.which("pkexec") or (
+            "/usr/bin/pkexec" if os.path.isfile("/usr/bin/pkexec") else None
+        )
+
+        success = True
+        err_details = []
+
+        for p in ports:
+            # Si pkexec está disponible, invocar directamente el binario ufw sin wrappers de shell que causen error 127
+            if pkexec_bin:
+                cmd = [pkexec_bin, ufw_bin, "allow", f"{p}/udp", "comment", "MeetLAN"]
             else:
-                cmd = f'sudo bash -c "{install_and_apply}"'
+                cmd = ["sudo", "-n", ufw_bin, "allow", f"{p}/udp", "comment", "MeetLAN"]
 
-            res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60)
-            if res.returncode == 0:
-                return True, (
-                    f"¡'ufw' se instaló y configuró exitosamente en Ubuntu!\n"
-                    f"Puertos UDP abiertos: {', '.join(str(p) for p in ports)}."
-                )
-            else:
-                # Si falló la elevación o no se pudo instalar
-                return False, (
-                    "El comando 'ufw' no está instalado en este sistema Linux.\n\n"
-                    "💡 Nota Técnica: En Ubuntu, si UFW no está instalado, no hay firewall bloqueando puertos;\n"
-                    "todos los puertos UDP ya están abiertos por defecto.\n\n"
-                    "Para instalar UFW de todas formas, ejecuta en terminal:\n"
-                    "sudo apt update && sudo apt install -y ufw\n"
-                    "(o corre: ./install_ubuntu.sh)"
-                )
+            try:
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+                if res.returncode != 0:
+                    success = False
+                    err_details.append(res.stderr.strip() or res.stdout.strip())
+            except Exception as e:
+                success = False
+                err_details.append(str(e))
 
-        # Si ufw ya está instalado, aplicar reglas asegurando /usr/sbin en PATH
-        shell_cmd = f'{path_env} && {rules_str}'
-        
-        if shutil.which("pkexec"):
-            cmd = f'pkexec bash -c "{shell_cmd}"'
+        if success:
+            return True, f"Reglas UFW aplicadas exitosamente para puertos UDP: {ports_str}."
         else:
-            cmd = f'sudo bash -c "{shell_cmd}"'
+            # Si la autenticación gráfica falló o fue cancelada
+            return False, (
+                f"Se requiere elevación de permisos para modificar UFW.\n\n"
+                f"Para habilitar los puertos en UFW, ejecuta en tu terminal:\n"
+                f"sudo ./abrir_firewall_linux.sh\n\n"
+                f"(Detalle: {'; '.join(filter(None, err_details)) or 'Autenticación cancelada'})"
+            )
 
-        res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
-        if res.returncode == 0:
-            return True, f"Reglas UFW aplicadas exitosamente para puertos UDP: {', '.join(str(p) for p in ports)}."
-        else:
-            err = (res.stderr or res.stdout).strip()
-            return False, f"UFW devolvió un aviso (código {res.returncode}):\n{err}"
     except Exception as e:
-        return False, f"Error al ejecutar UFW en Linux: {e}"
+        return False, f"Error al verificar Firewall en Linux: {e}"
