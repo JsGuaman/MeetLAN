@@ -100,21 +100,65 @@ def _apply_windows_firewall(ports, ports_str):
 def _apply_linux_firewall(ports):
     """
     Abre las reglas en Ubuntu (UFW) solicitando permisos con pkexec (diálogo gráfico) o sudo.
+    Maneja automáticamente el caso donde ufw no esté instalado o no esté en el PATH.
     """
     try:
-        ufw_commands = " && ".join([f"ufw allow {p}/udp comment 'MeetLAN'" for p in ports])
+        # Asegurar PATH donde reside ufw (/usr/sbin)
+        path_env = 'export PATH="$PATH:/usr/sbin:/sbin"'
         
-        # Intentar diálogo gráfico PolicyKit estándar en GNOME/Ubuntu (pkexec)
+        # 1. Verificar si ufw está disponible
+        ufw_bin = None
+        for candidate in ["ufw", "/usr/sbin/ufw", "/sbin/ufw"]:
+            if shutil.which(candidate) or os.path.isfile(candidate):
+                ufw_bin = candidate
+                break
+
+        rules_str = " && ".join([f"ufw allow {p}/udp comment 'MeetLAN'" for p in ports])
+
+        if not ufw_bin:
+            # ufw no está instalado: intentar instalarlo con apt mediante elevación
+            install_and_apply = (
+                f'{path_env} && '
+                f'apt-get update && '
+                f'apt-get install -y ufw && '
+                f'{rules_str}'
+            )
+            
+            if shutil.which("pkexec"):
+                cmd = f'pkexec bash -c "{install_and_apply}"'
+            else:
+                cmd = f'sudo bash -c "{install_and_apply}"'
+
+            res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60)
+            if res.returncode == 0:
+                return True, (
+                    f"¡'ufw' se instaló y configuró exitosamente en Ubuntu!\n"
+                    f"Puertos UDP abiertos: {', '.join(str(p) for p in ports)}."
+                )
+            else:
+                # Si falló la elevación o no se pudo instalar
+                return False, (
+                    "El comando 'ufw' no está instalado en este sistema Linux.\n\n"
+                    "💡 Nota Técnica: En Ubuntu, si UFW no está instalado, no hay firewall bloqueando puertos;\n"
+                    "todos los puertos UDP ya están abiertos por defecto.\n\n"
+                    "Para instalar UFW de todas formas, ejecuta en terminal:\n"
+                    "sudo apt update && sudo apt install -y ufw\n"
+                    "(o corre: ./install_ubuntu.sh)"
+                )
+
+        # Si ufw ya está instalado, aplicar reglas asegurando /usr/sbin en PATH
+        shell_cmd = f'{path_env} && {rules_str}'
+        
         if shutil.which("pkexec"):
-            cmd = f'pkexec bash -c "{ufw_commands}"'
+            cmd = f'pkexec bash -c "{shell_cmd}"'
         else:
-            cmd = f'sudo bash -c "{ufw_commands}"'
+            cmd = f'sudo bash -c "{shell_cmd}"'
 
         res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
         if res.returncode == 0:
             return True, f"Reglas UFW aplicadas exitosamente para puertos UDP: {', '.join(str(p) for p in ports)}."
         else:
-            err = res.stderr or res.stdout
-            return False, f"UFW no pudo aplicar las reglas (código {res.returncode}): {err}"
+            err = (res.stderr or res.stdout).strip()
+            return False, f"UFW devolvió un aviso (código {res.returncode}):\n{err}"
     except Exception as e:
-        return False, f"Error al ejecutar UFW: {e}"
+        return False, f"Error al ejecutar UFW en Linux: {e}"

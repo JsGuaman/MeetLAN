@@ -32,9 +32,9 @@ Incorpora todos los hallazgos y optimizaciones de latencia ultrabaja desarrollad
    *(O desde PowerShell / CMD: `python main.py`)*.
 
 ### En Ubuntu / GNU/Linux:
-1. Abre una terminal en la carpeta `MeetLAN` e instala las dependencias:
+1. Abre una terminal en la carpeta `MeetLAN` e instala las dependencias del sistema (FFmpeg, Python-TK, PulseAudio, V4L2 y UFW):
    ```bash
-   chmod +x install_ubuntu.sh run_meetlan.sh
+   chmod +x install_ubuntu.sh run_meetlan.sh abrir_firewall_linux.sh
    ./install_ubuntu.sh
    ```
 2. Ejecuta la aplicación:
