@@ -74,7 +74,7 @@ class SignalingManager:
                 pass
 
     def scan_peers(self):
-        """Envía saludo broadcast y sondeo rápido en subred /24."""
+        """Envía saludo broadcast y sondeo rápido en subred /24 a todos los puertos conocidos."""
         if not self.sock or not self.local_ip:
             return
         
@@ -82,20 +82,24 @@ class SignalingManager:
             "type": "DISCOVERY_PING",
             "name": self.user_name,
             "ip": self.local_ip,
+            "port": self.port,
             "status": self.status
         }).encode("utf-8")
 
+        ports_to_broadcast = set([self.port, 6000, 6005, 6007, 6010, 6020, 6050])
         # 1. Broadcast global y de subred
-        try:
-            self.sock.sendto(msg, ("255.255.255.255", self.port))
-            parts = self.local_ip.split(".")
-            if len(parts) == 4:
-                subnet_bcast = f"{parts[0]}.{parts[1]}.{parts[2]}.255"
-                self.sock.sendto(msg, (subnet_bcast, self.port))
-        except Exception as e:
-            print(f"[DESCUBRIMIENTO] Error en broadcast: {e}")
+        parts = self.local_ip.split(".")
+        subnet_bcast = f"{parts[0]}.{parts[1]}.{parts[2]}.255" if len(parts) == 4 else None
 
-        # 2. Sondeo en hilo de fondo a la subred /24 (por si el AP aísla broadcasts)
+        for p in ports_to_broadcast:
+            try:
+                self.sock.sendto(msg, ("255.255.255.255", p))
+                if subnet_bcast:
+                    self.sock.sendto(msg, (subnet_bcast, p))
+            except Exception:
+                pass
+
+        # 2. Sondeo en hilo de fondo a la subred /24 (por si el router Wi-Fi aísla broadcasts)
         threading.Thread(target=self._subnet_ping_worker, args=(msg,), daemon=True).start()
 
     def _subnet_ping_worker(self, msg):
@@ -104,16 +108,18 @@ class SignalingManager:
             return
         base = f"{parts[0]}.{parts[1]}.{parts[2]}"
         my_last = int(parts[3])
+        ports_to_probe = [self.port, 6000, 6007, 6010, 6050]
         
         for host in range(1, 255):
             if host == my_last:
                 continue
             target_ip = f"{base}.{host}"
-            try:
-                self.sock.sendto(msg, (target_ip, self.port))
-            except Exception:
-                pass
-            time.sleep(0.005)  # 5 ms entre envíos para no saturar enlace Wi-Fi
+            for p in ports_to_probe:
+                try:
+                    self.sock.sendto(msg, (target_ip, p))
+                except Exception:
+                    pass
+            time.sleep(0.003)  # Rápido sin saturar Wi-Fi
 
     def send_call_offer(self, target_ip):
         """Inicia una llamada hacia target_ip comunicando el puerto RX configurado."""
@@ -122,16 +128,19 @@ class SignalingManager:
             "type": "CALL_OFFER",
             "caller_name": self.user_name,
             "caller_ip": self.local_ip,
-            "caller_rx_port": rx_port
+            "caller_rx_port": rx_port,
+            "caller_sig_port": self.port
         }).encode("utf-8")
         
-        try:
-            self.sock.sendto(msg, (target_ip, self.port))
-            print(f"[LLAMADA] Oferta de llamada enviada a {target_ip}:{self.port} (Mi RX espera en UDP {rx_port})")
-            return True
-        except Exception as e:
-            print(f"[LLAMADA] Error al enviar oferta: {e}")
-            return False
+        peer_p = self.peers.get(target_ip, {}).get("port", self.port)
+        target_ports = set([peer_p, self.port, 6000, 6007, 6010, 6050])
+        for p in target_ports:
+            try:
+                self.sock.sendto(msg, (target_ip, p))
+            except Exception:
+                pass
+        print(f"[LLAMADA] Oferta de llamada enviada a {target_ip} en puertos {target_ports} (Mi RX espera en UDP {rx_port})")
+        return True
 
     def send_call_accept(self, target_ip):
         """Acepta la llamada entrante comunicando el puerto RX configurado."""
@@ -141,13 +150,18 @@ class SignalingManager:
             "type": "CALL_ACCEPT",
             "callee_name": self.user_name,
             "callee_ip": self.local_ip,
-            "callee_rx_port": rx_port
+            "callee_rx_port": rx_port,
+            "callee_sig_port": self.port
         }).encode("utf-8")
-        try:
-            self.sock.sendto(msg, (target_ip, self.port))
-            print(f"[LLAMADA] Aceptación de llamada enviada a {target_ip}:{self.port} (Mi RX espera en UDP {rx_port})")
-        except Exception as e:
-            print(f"[LLAMADA] Error al enviar aceptación: {e}")
+        
+        peer_p = self.peers.get(target_ip, {}).get("port", self.port)
+        target_ports = set([peer_p, self.port, 6000, 6007, 6010, 6050])
+        for p in target_ports:
+            try:
+                self.sock.sendto(msg, (target_ip, p))
+            except Exception:
+                pass
+        print(f"[LLAMADA] Aceptación de llamada enviada a {target_ip} (Mi RX espera en UDP {rx_port})")
 
     def send_call_reject(self, target_ip):
         """Rechaza la llamada entrante."""
@@ -156,10 +170,13 @@ class SignalingManager:
             "callee_name": self.user_name,
             "reason": "USER_REJECTED"
         }).encode("utf-8")
-        try:
-            self.sock.sendto(msg, (target_ip, self.port))
-        except Exception as e:
-            print(f"[LLAMADA] Error al enviar rechazo: {e}")
+        peer_p = self.peers.get(target_ip, {}).get("port", self.port)
+        target_ports = set([peer_p, self.port, 6000, 6007, 6010, 6050])
+        for p in target_ports:
+            try:
+                self.sock.sendto(msg, (target_ip, p))
+            except Exception:
+                pass
 
     def send_hangup(self, target_ip):
         """Finaliza la llamada activa."""
@@ -169,10 +186,13 @@ class SignalingManager:
             "from_name": self.user_name,
             "from_ip": self.local_ip
         }).encode("utf-8")
-        try:
-            self.sock.sendto(msg, (target_ip, self.port))
-        except Exception as e:
-            print(f"[LLAMADA] Error al enviar colgar: {e}")
+        peer_p = self.peers.get(target_ip, {}).get("port", self.port)
+        target_ports = set([peer_p, self.port, 6000, 6007, 6010, 6050])
+        for p in target_ports:
+            try:
+                self.sock.sendto(msg, (target_ip, p))
+            except Exception:
+                pass
 
     def _listen_loop(self):
         while self.running:
@@ -201,31 +221,43 @@ class SignalingManager:
                 if p_type == "DISCOVERY_PING":
                     peer_name = payload.get("name", "Desconocido")
                     peer_status = payload.get("status", "AVAILABLE")
+                    peer_port = int(payload.get("port", addr[1]))
                     self.peers[sender_ip] = {
                         "name": peer_name,
                         "ip": sender_ip,
+                        "port": peer_port,
                         "status": peer_status,
                         "last_seen": time.time()
                     }
                     if self.on_peer_discovered:
                         self.on_peer_discovered(self.peers)
                     
-                    # Responder con PONG
+                    # Responder con PONG comunicando nuestro puerto
                     pong = json.dumps({
                         "type": "DISCOVERY_PONG",
                         "name": self.user_name,
                         "ip": self.local_ip,
+                        "port": self.port,
                         "status": self.status
                     }).encode("utf-8")
-                    self.sock.sendto(pong, (sender_ip, self.port))
+                    
+                    # Enviar respuesta al puerto anunciado por el emisor + puertos estándar
+                    reply_ports = set([peer_port, addr[1], 6000, 6007, 6010, 6050])
+                    for p in reply_ports:
+                        try:
+                            self.sock.sendto(pong, (sender_ip, p))
+                        except Exception:
+                            pass
 
                 # 2. Descubrimiento PONG
                 elif p_type == "DISCOVERY_PONG":
                     peer_name = payload.get("name", "Desconocido")
                     peer_status = payload.get("status", "AVAILABLE")
+                    peer_port = int(payload.get("port", addr[1]))
                     self.peers[sender_ip] = {
                         "name": peer_name,
                         "ip": sender_ip,
+                        "port": peer_port,
                         "status": peer_status,
                         "last_seen": time.time()
                     }
@@ -236,7 +268,12 @@ class SignalingManager:
                 elif p_type == "CALL_OFFER":
                     if self.status == "IN_CALL":
                         busy_msg = json.dumps({"type": "CALL_BUSY"}).encode("utf-8")
-                        self.sock.sendto(busy_msg, (sender_ip, self.port))
+                        peer_p = int(payload.get("caller_sig_port", addr[1]))
+                        for p in set([peer_p, addr[1], 6000, 6007, 6010, 6050]):
+                            try:
+                                self.sock.sendto(busy_msg, (sender_ip, p))
+                            except Exception:
+                                pass
                     else:
                         if self.on_incoming_call:
                             self.on_incoming_call(payload)

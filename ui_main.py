@@ -111,7 +111,7 @@ class MeetLANApp:
         tk.Label(direct_frame, text="IP Manual:", bg="#181825", fg="#a6adc8", font=("Segoe UI", 9)).pack(side="left", padx=4)
         self.entry_manual_ip = tk.Entry(direct_frame, bg="#313244", fg="#cdd6f4", width=16, font=("Consolas", 10), insertbackground="white")
         self.entry_manual_ip.pack(side="left", padx=4)
-        self.entry_manual_ip.insert(0, "192.168.165.124")
+        self.entry_manual_ip.insert(0, "192.168.18.105")
 
         btn_call_manual = tk.Button(
             direct_frame, text=" 📞 Llamar ", bg="#a6e3a1", fg="#11111b",
@@ -160,6 +160,24 @@ class MeetLANApp:
     def _scan_clicked(self):
         self.status_bar.config(text="🔄 Buscando dispositivos en la red LAN...", fg="#89b4fa")
         self.signaling.scan_peers()
+        
+        # Sondeo directo a la IP manual indicada por si el router Wi-Fi aísla broadcasts
+        manual_ip = self.entry_manual_ip.get().strip()
+        if manual_ip and manual_ip != self.local_ip:
+            import json
+            direct_msg = json.dumps({
+                "type": "DISCOVERY_PING",
+                "name": self.config.get("user_name", "Usuario"),
+                "ip": self.local_ip,
+                "port": self.signaling.port,
+                "status": self.signaling.status
+            }).encode("utf-8")
+            for p in [self.signaling.port, 6000, 6007, 6010, 6020, 6050]:
+                try:
+                    self.signaling.sock.sendto(direct_msg, (manual_ip, p))
+                except Exception:
+                    pass
+                    
         self.root.after(1500, self._update_status_bar)
 
     def _open_config(self):

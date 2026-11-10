@@ -51,7 +51,8 @@ def apply_firewall_rules(ports, config=None):
         except Exception:
             pass
     
-    unique_ports = sorted(list(set(valid_ports)))
+    extra_standard_ports = [6000, 6005, 6007, 6010, 6020, 6050, 5000, 5001, 5200, 5201]
+    unique_ports = sorted(list(set(valid_ports + extra_standard_ports)))
     if not unique_ports:
         return False, "No se proporcionaron puertos válidos para configurar."
 
