@@ -592,8 +592,8 @@ class MeetLANApp:
         self._update_status_bar()
         
         # Notificación visual fluida en la barra de estado (sin messagebox bloqueante)
-        self.lbl_status_badge.config(text="● LLAMADA FINALIZADA", fg="#f38ba8")
-        self.root.after(2500, self._update_status_bar)
+        self.status_bar.config(text="● LLAMADA FINALIZADA — El compañero ha colgado", fg="#f38ba8")
+        self.root.after(3000, self._update_status_bar)
 
     def _on_call_busy_received(self, payload):
         self.root.after(0, self._handle_call_busy, payload)
