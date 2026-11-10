@@ -91,12 +91,14 @@ MeetLAN/
 Haciendo clic en **"⚙️ Configuración"**, puedes modificar en tiempo real:
 * **Video:** Bitrate (`300k`, `500k`, etc.), FPS (`24`, `30`), GoP, Preset (`ultrafast`), Tune (`zerolatency`), Espacio de color (`yuv420p`), Resolución.
 * **Audio:** Códec (`aac`), Tasa (`64k`), Búfer de hardware (`40 ms` para Bluetooth), filtro `aresample`.
-* **Red / Puertos Sin Hardcodeo:**
-  * **Puerto RX Local:** Puedes configurar cualquier puerto UDP libre (ej. 5200 si servicios como National Instruments ocupan el 5000/5001 en Windows).
+* **Red / Puertos con Sliders Interactivos (4000 - 9000):**
+  * **Puerto RX Local (Slider):** Deslizador para seleccionar el puerto donde tu PC escucha el video/audio remoto.
+  * **Puerto TX Remoto (Slider):** Deslizador para seleccionar el puerto hacia el que transmitirás al marcar por IP Manual o scripts.
+  * **Puerto Señalización (Slider):** Deslizador para seleccionar el puerto de saludo y alertas P2P.
   * **Botón "🔍 Probar":** Verifica en tiempo real si el puerto UDP está libre o si está retenido por otro proceso.
-  * **Negociación Automática:** Cada PC anuncia su propio puerto RX en la señalización (`caller_rx_port` y `callee_rx_port`). Cada extremo transmite exactamente al puerto que el compañero tiene abierto, sin conflicto alguno.
-  * **Botón "🛡️ Abrir Puertos en Firewall del Sistema (1 Clic)":** Solicita elevación UAC en Windows Defender o diálogo gráfico `pkexec` en Ubuntu (UFW).
-* **Hardware:** Detección automática en lista desplegable (Combobox) de cámaras y micrófonos DirectShow en Windows o V4L2/PulseAudio en Linux.
+  * **Negociación Automática:** Cada PC anuncia su propio puerto RX en la señalización (`caller_rx_port` y `callee_rx_port`). Al llamar a un contacto de la lista, tu TX transmite automáticamente al puerto que el compañero tiene abierto, garantizando cero colisiones.
+  * **Botón "🛡️ Abrir Puertos en Firewall del Sistema (1 Clic)":** Solicita elevación UAC en Windows Defender o diálogo gráfico `pkexec` en Ubuntu / reglas iptables en Kali Linux.
+* **Hardware:** Detección automática en lista desplegable (Combobox) de cámaras y micrófonos DirectShow en Windows o V4L2/PulseAudio/ALSA en Linux y Kali.
 
 ### 3. Flujo de Llamada (Aceptación / Rechazo Obligatorio)
 1. Presionas **"📞 Llamar"** al lado del contacto deseado.

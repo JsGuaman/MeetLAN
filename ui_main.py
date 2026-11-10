@@ -109,9 +109,14 @@ class MeetLANApp:
         direct_frame.pack(side="right")
 
         tk.Label(direct_frame, text="IP Manual:", bg="#181825", fg="#a6adc8", font=("Segoe UI", 9)).pack(side="left", padx=4)
-        self.entry_manual_ip = tk.Entry(direct_frame, bg="#313244", fg="#cdd6f4", width=16, font=("Consolas", 10), insertbackground="white")
-        self.entry_manual_ip.pack(side="left", padx=4)
+        self.entry_manual_ip = tk.Entry(direct_frame, bg="#313244", fg="#cdd6f4", width=14, font=("Consolas", 10), insertbackground="white")
+        self.entry_manual_ip.pack(side="left", padx=2)
         self.entry_manual_ip.insert(0, "192.168.18.105")
+
+        tk.Label(direct_frame, text="Puerto TX:", bg="#181825", fg="#a6adc8", font=("Segoe UI", 9)).pack(side="left", padx=(6, 2))
+        self.entry_manual_tx_port = tk.Entry(direct_frame, bg="#313244", fg="#cdd6f4", width=6, font=("Consolas", 10), insertbackground="white")
+        self.entry_manual_tx_port.pack(side="left", padx=2)
+        self.entry_manual_tx_port.insert(0, str(self.config.get("tx_port", 5000)))
 
         btn_call_manual = tk.Button(
             direct_frame, text=" 📞 Llamar ", bg="#a6e3a1", fg="#11111b",
@@ -216,6 +221,9 @@ class MeetLANApp:
         self.engine.config = new_cfg
         self.signaling.config = new_cfg
         self.signaling.user_name = new_cfg.get("user_name", "Usuario")
+        if hasattr(self, "entry_manual_tx_port"):
+            self.entry_manual_tx_port.delete(0, tk.END)
+            self.entry_manual_tx_port.insert(0, str(new_cfg.get("tx_port", 5000)))
 
     def _update_status_bar(self):
         st = self.signaling.status
@@ -270,7 +278,17 @@ class MeetLANApp:
         if not target_ip:
             messagebox.showwarning("Atención", "Por favor ingresa una IP de destino.")
             return
-        self._start_call_to(target_ip, {"name": f"PC ({target_ip})", "ip": target_ip})
+
+        try:
+            target_tx_port = int(self.entry_manual_tx_port.get().strip())
+        except Exception:
+            target_tx_port = int(self.config.get("tx_port", 5000))
+
+        self._start_call_to(target_ip, {
+            "name": f"PC ({target_ip})",
+            "ip": target_ip,
+            "remote_rx_port": target_tx_port
+        })
 
     def _start_call_to(self, target_ip, peer_data):
         if self.signaling.status == "IN_CALL":

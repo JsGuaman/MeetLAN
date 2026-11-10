@@ -14,7 +14,7 @@ class ConfigDialog(tk.Toplevel):
     def __init__(self, parent, config, on_saved=None):
         super().__init__(parent)
         self.title("Configuración de Parámetros - MeetLAN")
-        self.geometry("580x640")
+        self.geometry("640x720")
         self.resizable(False, False)
         self.config = config
         self.on_saved = on_saved
@@ -230,74 +230,134 @@ class ConfigDialog(tk.Toplevel):
 
     def _build_network_tab(self, parent):
         f = tk.Frame(parent, bg="#1e1e2e")
-        f.pack(fill="both", expand=True, padx=20, pady=15)
+        f.pack(fill="both", expand=True, padx=20, pady=12)
 
-        # Puerto Señalización
-        tk.Label(f, text="Puerto Señalización / Alertas:", bg="#1e1e2e", fg="#cdd6f4", font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w", pady=6)
-        self.var_sig_port = tk.IntVar(value=self.config.get("signaling_port", 6010))
-        entry_sig = tk.Entry(f, textvariable=self.var_sig_port, bg="#313244", fg="#cdd6f4", width=12, insertbackground="white")
-        entry_sig.grid(row=0, column=1, sticky="w", padx=6, pady=6)
-        btn_test_sig = tk.Button(
-            f, text="🔍 Probar", bg="#45475a", fg="#cdd6f4", font=("Segoe UI", 8), relief="flat", padx=8, pady=2,
-            command=lambda: self._test_port_action(self.var_sig_port.get(), "Señalización")
-        )
-        btn_test_sig.grid(row=0, column=2, sticky="w", padx=4, pady=6)
+        # 1. Puerto RX Local (Recepción) con Slider
+        lbl_rx = tk.Label(f, text="📥 Puerto RX Local (Recepción):", bg="#1e1e2e", fg="#a6e3a1", font=("Segoe UI", 10, "bold"))
+        lbl_rx.grid(row=0, column=0, sticky="w", pady=(4, 0))
 
-        # Puerto RX Local
-        tk.Label(f, text="Puerto de Recepción Local (RX):", bg="#1e1e2e", fg="#cdd6f4", font=("Segoe UI", 9, "bold")).grid(row=1, column=0, sticky="w", pady=6)
+        frame_rx = tk.Frame(f, bg="#1e1e2e")
+        frame_rx.grid(row=1, column=0, columnspan=3, sticky="we", pady=(0, 6))
+
         self.var_rx_port = tk.IntVar(value=self.config.get("rx_port", 5200))
-        entry_rx = tk.Entry(f, textvariable=self.var_rx_port, bg="#313244", fg="#cdd6f4", width=12, insertbackground="white")
-        entry_rx.grid(row=1, column=1, sticky="w", padx=6, pady=6)
+        entry_rx = tk.Entry(frame_rx, textvariable=self.var_rx_port, bg="#313244", fg="#cdd6f4", width=7, font=("Consolas", 10, "bold"), insertbackground="white")
+        entry_rx.pack(side="left", padx=(0, 6))
+
+        scale_rx = tk.Scale(
+            frame_rx, from_=4000, to=9000, orient="horizontal", variable=self.var_rx_port,
+            bg="#1e1e2e", fg="#cdd6f4", troughcolor="#313244", highlightthickness=0,
+            activebackground="#a6e3a1", showvalue=False, resolution=1, length=230
+        )
+        scale_rx.pack(side="left", padx=4)
+
         btn_test_rx = tk.Button(
-            f, text="🔍 Probar", bg="#45475a", fg="#cdd6f4", font=("Segoe UI", 8), relief="flat", padx=8, pady=2,
+            frame_rx, text="🔍 Probar", bg="#45475a", fg="#cdd6f4", font=("Segoe UI", 8), relief="flat", padx=8, pady=2,
             command=lambda: self._test_port_action(self.var_rx_port.get(), "Recepción RX")
         )
-        btn_test_rx.grid(row=1, column=2, sticky="w", padx=4, pady=6)
+        btn_test_rx.pack(side="left", padx=6)
 
-        # FIFO size
-        tk.Label(f, text="Búfer FIFO UDP (Bytes en RX):", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=6)
+        lbl_rx_desc = tk.Label(frame_rx, text="(Donde esta PC escucha)", bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8))
+        lbl_rx_desc.pack(side="left", padx=2)
+
+        # 2. Puerto TX Destino (Transmisión Manual / Fallback) con Slider
+        lbl_tx = tk.Label(f, text="📤 Puerto TX Remoto (Transmisión Manual / Fallback):", bg="#1e1e2e", fg="#89b4fa", font=("Segoe UI", 10, "bold"))
+        lbl_tx.grid(row=2, column=0, sticky="w", pady=(6, 0))
+
+        frame_tx = tk.Frame(f, bg="#1e1e2e")
+        frame_tx.grid(row=3, column=0, columnspan=3, sticky="we", pady=(0, 6))
+
+        self.var_tx_port = tk.IntVar(value=self.config.get("tx_port", 5000))
+        entry_tx = tk.Entry(frame_tx, textvariable=self.var_tx_port, bg="#313244", fg="#cdd6f4", width=7, font=("Consolas", 10, "bold"), insertbackground="white")
+        entry_tx.pack(side="left", padx=(0, 6))
+
+        scale_tx = tk.Scale(
+            frame_tx, from_=4000, to=9000, orient="horizontal", variable=self.var_tx_port,
+            bg="#1e1e2e", fg="#cdd6f4", troughcolor="#313244", highlightthickness=0,
+            activebackground="#89b4fa", showvalue=False, resolution=1, length=230
+        )
+        scale_tx.pack(side="left", padx=4)
+
+        btn_test_tx = tk.Button(
+            frame_tx, text="🔍 Probar", bg="#45475a", fg="#cdd6f4", font=("Segoe UI", 8), relief="flat", padx=8, pady=2,
+            command=lambda: self._test_port_action(self.var_tx_port.get(), "Transmisión TX")
+        )
+        btn_test_tx.pack(side="left", padx=6)
+
+        lbl_tx_desc = tk.Label(frame_tx, text="(Destino al marcar por IP Manual)", bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8))
+        lbl_tx_desc.pack(side="left", padx=2)
+
+        # 3. Puerto de Señalización / Descubrimiento con Slider
+        lbl_sig = tk.Label(f, text="🔔 Puerto Señalización / Alertas:", bg="#1e1e2e", fg="#f9e2af", font=("Segoe UI", 10, "bold"))
+        lbl_sig.grid(row=4, column=0, sticky="w", pady=(6, 0))
+
+        frame_sig = tk.Frame(f, bg="#1e1e2e")
+        frame_sig.grid(row=5, column=0, columnspan=3, sticky="we", pady=(0, 6))
+
+        self.var_sig_port = tk.IntVar(value=self.config.get("signaling_port", 6010))
+        entry_sig = tk.Entry(frame_sig, textvariable=self.var_sig_port, bg="#313244", fg="#cdd6f4", width=7, font=("Consolas", 10, "bold"), insertbackground="white")
+        entry_sig.pack(side="left", padx=(0, 6))
+
+        scale_sig = tk.Scale(
+            frame_sig, from_=5000, to=7000, orient="horizontal", variable=self.var_sig_port,
+            bg="#1e1e2e", fg="#cdd6f4", troughcolor="#313244", highlightthickness=0,
+            activebackground="#f9e2af", showvalue=False, resolution=1, length=230
+        )
+        scale_sig.pack(side="left", padx=4)
+
+        btn_test_sig = tk.Button(
+            frame_sig, text="🔍 Probar", bg="#45475a", fg="#cdd6f4", font=("Segoe UI", 8), relief="flat", padx=8, pady=2,
+            command=lambda: self._test_port_action(self.var_sig_port.get(), "Señalización")
+        )
+        btn_test_sig.pack(side="left", padx=6)
+
+        lbl_sig_desc = tk.Label(frame_sig, text="(Descubrimiento y timbrado LAN)", bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8))
+        lbl_sig_desc.pack(side="left", padx=2)
+
+        # 4. Parámetros de búferes de red
+        frame_buffers = tk.Frame(f, bg="#1e1e2e")
+        frame_buffers.grid(row=6, column=0, columnspan=3, sticky="we", pady=6)
+
+        tk.Label(frame_buffers, text="Búfer FIFO UDP (Bytes):", bg="#1e1e2e", fg="#cdd6f4", font=("Segoe UI", 9)).pack(side="left", padx=(0, 4))
         self.var_fifo = tk.IntVar(value=self.config.get("fifo_size", 0))
-        cb_fifo = ttk.Combobox(f, textvariable=self.var_fifo, values=[0, 32768, 50000, 100000], width=12)
-        cb_fifo.grid(row=2, column=1, sticky="w", padx=6, pady=6)
+        cb_fifo = ttk.Combobox(frame_buffers, textvariable=self.var_fifo, values=[0, 32768, 50000, 100000], width=8)
+        cb_fifo.pack(side="left", padx=(0, 15))
 
-        # rtbufsize
-        tk.Label(f, text="Búfer Cámara DirectShow (RAM):", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=6)
+        tk.Label(frame_buffers, text="Búfer Cámara RAM:", bg="#1e1e2e", fg="#cdd6f4", font=("Segoe UI", 9)).pack(side="left", padx=(0, 4))
         self.var_rtbuf = tk.StringVar(value=self.config.get("rtbufsize", "250M"))
-        cb_rtbuf = ttk.Combobox(f, textvariable=self.var_rtbuf, values=["100M", "200M", "250M", "300M", "500M"], width=12)
-        cb_rtbuf.grid(row=3, column=1, sticky="w", padx=6, pady=6)
+        cb_rtbuf = ttk.Combobox(frame_buffers, textvariable=self.var_rtbuf, values=["100M", "200M", "250M", "300M", "500M"], width=8)
+        cb_rtbuf.pack(side="left")
 
-        # Puerto TX Destino (fallback/legacy)
-        self.var_tx_port = tk.IntVar(value=self.config.get("tx_port", 5200))
-
-        # Cuadro informativo de puertos dinámicos
+        # 5. Cuadro explicativo de puertos
         tip_frame = tk.Frame(f, bg="#313244", padx=10, pady=8)
-        tip_frame.grid(row=4, column=0, columnspan=3, sticky="we", pady=(10, 10))
+        tip_frame.grid(row=7, column=0, columnspan=3, sticky="we", pady=(8, 6))
         tip_lbl = (
-            "💡 Negociación Dinámica de Puertos P2P:\n"
-            "• Cada PC define su propio puerto RX libre (ej. 5200 si NI bloquea 5000/5001).\n"
-            "• MeetLAN transmite automáticamente al puerto que informe el compañero."
+            "💡 ¿Cómo se selecciona el puerto de transmisión (TX)?\n"
+            "• Al llamar a un contacto de la lista, la señalización P2P negocia el puerto automáticamente:\n"
+            "  tu TX transmitirá al puerto exacto en el que tu compañero configuró su RX.\n"
+            "• Si marcas por 'IP Manual', se transmitirá hacia el 'Puerto TX' configurado arriba.\n"
+            "• Puedes deslizar o escribir cualquier puerto (4000-9000) y verificar si está libre con '🔍 Probar'."
         )
         tk.Label(tip_frame, text=tip_lbl, bg="#313244", fg="#a6adc8", font=("Segoe UI", 8), justify="left").pack(anchor="w")
 
-        # Sección Firewall 1-Clic
+        # 6. Sección Firewall 1-Clic
         fw_frame = tk.Frame(f, bg="#24273a", padx=12, pady=10, relief="groove", bd=1)
-        fw_frame.grid(row=5, column=0, columnspan=3, sticky="we", pady=(5, 5))
+        fw_frame.grid(row=8, column=0, columnspan=3, sticky="we", pady=(4, 4))
         
-        os_name = "Windows Defender" if self.is_win else "UFW (Ubuntu)"
+        os_name = "Windows Defender" if self.is_win else "UFW / iptables (Linux / Kali)"
         tk.Label(
             fw_frame, text=f"🛡️ Configuración de Firewall ({os_name})",
             bg="#24273a", fg="#fab387", font=("Segoe UI", 10, "bold")
         ).pack(anchor="w", pady=(0, 4))
         
         fw_desc = (
-            "Abre automáticamente las reglas UDP en el firewall del sistema para los\n"
-            "puertos configurados arriba, sin necesidad de comandos manuales."
+            "Abre automáticamente las reglas UDP en el firewall del sistema operativo para los\n"
+            "puertos configurados con los sliders arriba, evitando bloqueos de transmisión."
         )
-        tk.Label(fw_frame, text=fw_desc, bg="#24273a", fg="#cdd6f4", font=("Segoe UI", 8), justify="left").pack(anchor="w", pady=(0, 8))
+        tk.Label(fw_frame, text=fw_desc, bg="#24273a", fg="#cdd6f4", font=("Segoe UI", 8), justify="left").pack(anchor="w", pady=(0, 6))
 
         btn_apply_fw = tk.Button(
             fw_frame, text=" 🛡️ Abrir Puertos en Firewall del Sistema (1 Clic) ",
-            bg="#fab387", fg="#11111b", font=("Segoe UI", 9, "bold"), relief="flat", padx=12, pady=6,
+            bg="#fab387", fg="#11111b", font=("Segoe UI", 9, "bold"), relief="flat", padx=12, pady=5,
             command=self._apply_firewall_action
         )
         btn_apply_fw.pack(anchor="w")
