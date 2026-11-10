@@ -252,6 +252,10 @@ class ConfigDialog(tk.Toplevel):
 
     def destroy(self):
         try:
+            self.grab_release()
+        except Exception:
+            pass
+        try:
             self.unbind_all("<Button-4>")
             self.unbind_all("<Button-5>")
             self.unbind_all("<MouseWheel>")

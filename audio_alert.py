@@ -12,6 +12,7 @@ class RingtoneManager:
     def __init__(self):
         self.ringing = False
         self.ring_thread = None
+        self.current_proc = None
 
     def start_ringing(self):
         if self.ringing:
@@ -22,12 +23,18 @@ class RingtoneManager:
 
     def stop_ringing(self):
         self.ringing = False
+        if self.current_proc and self.current_proc.poll() is None:
+            try:
+                self.current_proc.kill()
+            except Exception:
+                pass
+        self.current_proc = None
 
     def _ring_worker(self):
         is_win = platform.system() == "Windows"
         while self.ringing:
             try:
-                # 1. Intentar tono senoidal puro mediante FFplay lavfi (880 Hz)
+                # 1. Intentar tono senoidal mediante FFplay lavfi (880 Hz)
                 proc = subprocess.Popen(
                     [
                         "ffplay",
@@ -40,19 +47,22 @@ class RingtoneManager:
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL
                 )
+                self.current_proc = proc
                 
                 # Esperar hasta que termine o hasta que se detenga la llamada
                 while proc.poll() is None:
                     if not self.ringing:
-                        proc.terminate()
+                        proc.kill()
                         return
-                    time.sleep(0.05)
+                    time.sleep(0.04)
                 
+                self.current_proc = None
+
                 # Pausa entre timbrazos (cadencia de timbre telefónico)
-                for _ in range(10):
+                for _ in range(12):
                     if not self.ringing:
                         return
-                    time.sleep(0.06)
+                    time.sleep(0.05)
 
             except Exception:
                 # 2. Fallback nativo en Windows mediante winsound

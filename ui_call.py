@@ -53,7 +53,7 @@ class CallControlBar(tk.Toplevel):
         self.lbl_timer.pack(pady=2)
 
         # Botón de Colgar
-        btn_hangup = tk.Button(
+        self.btn_hangup = tk.Button(
             f,
             text="  🔴 Colgar Videollamada  ",
             bg="#f38ba8",
@@ -63,7 +63,10 @@ class CallControlBar(tk.Toplevel):
             activebackground="#eba0ac",
             command=self._hangup_clicked
         )
-        btn_hangup.pack(pady=4)
+        self.btn_hangup.pack(pady=4)
+
+        # Capturar el cierre de ventana [X] para que siempre cuelgue y libere recursos
+        self.protocol("WM_DELETE_WINDOW", self._hangup_clicked)
 
         # Loop de actualización del cronómetro
         self._update_timer()
@@ -74,14 +77,26 @@ class CallControlBar(tk.Toplevel):
         elapsed = int(time.time() - self.start_time)
         mins = elapsed // 60
         secs = elapsed % 60
-        self.lbl_timer.config(text=f"Duración: {mins:02d}:{secs:02d}")
-        self.after(1000, self._update_timer)
+        try:
+            self.lbl_timer.config(text=f"Duración: {mins:02d}:{secs:02d}")
+            self.after(1000, self._update_timer)
+        except Exception:
+            pass
 
     def _hangup_clicked(self):
+        if not self.is_running:
+            return
         self.is_running = False
+        try:
+            self.btn_hangup.config(state="disabled", text=" Colgando... ")
+        except Exception:
+            pass
         if self.on_hangup:
             self.on_hangup()
-        self.destroy()
+        try:
+            self.destroy()
+        except Exception:
+            pass
 
     def close_bar(self):
         self.is_running = False

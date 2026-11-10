@@ -123,6 +123,7 @@ class SignalingManager:
 
     def send_call_offer(self, target_ip):
         """Inicia una llamada hacia target_ip comunicando el puerto RX configurado."""
+        self.status = "CALLING"
         rx_port = int(self.config.get("rx_port", 5200))
         msg = json.dumps({
             "type": "CALL_OFFER",
@@ -145,6 +146,7 @@ class SignalingManager:
     def send_call_accept(self, target_ip):
         """Acepta la llamada entrante comunicando el puerto RX configurado."""
         self.status = "IN_CALL"
+        self._current_ringing_caller = None
         rx_port = int(self.config.get("rx_port", 5200))
         msg = json.dumps({
             "type": "CALL_ACCEPT",
@@ -165,6 +167,8 @@ class SignalingManager:
 
     def send_call_reject(self, target_ip):
         """Rechaza la llamada entrante."""
+        self.status = "AVAILABLE"
+        self._current_ringing_caller = None
         msg = json.dumps({
             "type": "CALL_REJECT",
             "callee_name": self.user_name,
@@ -181,6 +185,7 @@ class SignalingManager:
     def send_hangup(self, target_ip):
         """Finaliza la llamada activa."""
         self.status = "AVAILABLE"
+        self._current_ringing_caller = None
         msg = json.dumps({
             "type": "CALL_HANGUP",
             "from_name": self.user_name,
@@ -266,7 +271,10 @@ class SignalingManager:
 
                 # 3. Oferta de llamada entrante
                 elif p_type == "CALL_OFFER":
-                    if self.status == "IN_CALL":
+                    if self.status in ["IN_CALL", "RINGING"]:
+                        # Si ya está sonando por este mismo llamante, ignorar paquete duplicado
+                        if self.status == "RINGING" and getattr(self, "_current_ringing_caller", None) == sender_ip:
+                            continue
                         busy_msg = json.dumps({"type": "CALL_BUSY"}).encode("utf-8")
                         peer_p = int(payload.get("caller_sig_port", addr[1]))
                         for p in set([peer_p, addr[1], 6000, 6007, 6010, 6050]):
@@ -275,29 +283,36 @@ class SignalingManager:
                             except Exception:
                                 pass
                     else:
+                        self.status = "RINGING"
+                        self._current_ringing_caller = sender_ip
                         if self.on_incoming_call:
                             self.on_incoming_call(payload)
 
                 # 4. Llamada aceptada
                 elif p_type == "CALL_ACCEPT":
                     self.status = "IN_CALL"
+                    self._current_ringing_caller = None
                     if self.on_call_accepted:
                         self.on_call_accepted(payload)
 
                 # 5. Llamada rechazada
                 elif p_type == "CALL_REJECT":
                     self.status = "AVAILABLE"
+                    self._current_ringing_caller = None
                     if self.on_call_rejected:
                         self.on_call_rejected(payload)
 
                 # 6. Colgar llamada
                 elif p_type == "CALL_HANGUP":
                     self.status = "AVAILABLE"
+                    self._current_ringing_caller = None
                     if self.on_call_hungup:
                         self.on_call_hungup(payload)
 
                 # 7. Usuario ocupado
                 elif p_type == "CALL_BUSY":
+                    self.status = "AVAILABLE"
+                    self._current_ringing_caller = None
                     if self.on_call_busy:
                         self.on_call_busy(payload)
 

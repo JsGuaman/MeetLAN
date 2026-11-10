@@ -317,14 +317,40 @@ class MeetLANApp:
         y = max(10, ry + (rh - h) // 2)
         win.geometry(f"{w}x{h}+{x}+{y}")
 
+    def _close_outgoing_dialog(self):
+        if self.outgoing_dialog:
+            try:
+                self.outgoing_dialog.grab_release()
+            except Exception:
+                pass
+            try:
+                self.outgoing_dialog.destroy()
+            except Exception:
+                pass
+            self.outgoing_dialog = None
+
+    def _close_incoming_dialog(self):
+        self.ringtone.stop_ringing()
+        if self.incoming_dialog:
+            try:
+                self.incoming_dialog.grab_release()
+            except Exception:
+                pass
+            try:
+                self.incoming_dialog.destroy()
+            except Exception:
+                pass
+            self.incoming_dialog = None
+
     def _show_outgoing_call_dialog(self, peer_data):
+        self._close_outgoing_dialog()
         self.outgoing_dialog = tk.Toplevel(self.root)
         self.outgoing_dialog.title("Llamando...")
         self._center_toplevel(self.outgoing_dialog, 360, 180)
         self.outgoing_dialog.resizable(False, False)
         self.outgoing_dialog.configure(bg="#1e1e2e")
         self.outgoing_dialog.transient(self.root)
-        self.outgoing_dialog.grab_set()
+        self.outgoing_dialog.protocol("WM_DELETE_WINDOW", self._cancel_outgoing_call)
 
         lbl_calling = tk.Label(
             self.outgoing_dialog,
@@ -350,15 +376,21 @@ class MeetLANApp:
     def _cancel_outgoing_call(self):
         if self.active_peer:
             self.signaling.send_hangup(self.active_peer.get("ip"))
-        if self.outgoing_dialog:
-            self.outgoing_dialog.destroy()
-            self.outgoing_dialog = None
+        self._close_outgoing_dialog()
+        self.signaling.status = "AVAILABLE"
         self.active_peer = None
+        self._update_status_bar()
 
     def _on_incoming_call_received(self, payload):
         self.root.after(0, self._show_incoming_call_dialog, payload)
 
     def _show_incoming_call_dialog(self, payload):
+        # Evitar crear diálogos duplicados si ya está sonando o en llamada
+        if self.incoming_dialog is not None:
+            return
+        if self.signaling.status == "IN_CALL":
+            return
+
         caller_name = payload.get("caller_name", "Compañero")
         caller_ip = payload.get("caller_ip", "")
         caller_rx_port = int(payload.get("caller_rx_port", 5200))
@@ -379,6 +411,7 @@ class MeetLANApp:
         self.incoming_dialog.resizable(False, False)
         self.incoming_dialog.configure(bg="#1e1e2e")
         self.incoming_dialog.attributes("-topmost", True)
+        self.incoming_dialog.protocol("WM_DELETE_WINDOW", self._reject_incoming_call)
 
         lbl_title = tk.Label(
             self.incoming_dialog, text="🔔 ¡LLAMADA ENTRANTE!",
@@ -411,11 +444,7 @@ class MeetLANApp:
         btn_reject.pack(side="left", padx=10)
 
     def _accept_incoming_call(self):
-        # Detener timbre
-        self.ringtone.stop_ringing()
-        if self.incoming_dialog:
-            self.incoming_dialog.destroy()
-            self.incoming_dialog = None
+        self._close_incoming_dialog()
 
         if not self.active_peer:
             return
@@ -427,22 +456,19 @@ class MeetLANApp:
         self._launch_media_session()
 
     def _reject_incoming_call(self):
-        self.ringtone.stop_ringing()
-        if self.incoming_dialog:
-            self.incoming_dialog.destroy()
-            self.incoming_dialog = None
+        self._close_incoming_dialog()
 
         if self.active_peer:
             self.signaling.send_call_reject(self.active_peer.get("ip"))
         self.active_peer = None
+        self.signaling.status = "AVAILABLE"
+        self._update_status_bar()
 
     def _on_call_accepted_received(self, payload):
         self.root.after(0, self._handle_call_accepted, payload)
 
     def _handle_call_accepted(self, payload):
-        if self.outgoing_dialog:
-            self.outgoing_dialog.destroy()
-            self.outgoing_dialog = None
+        self._close_outgoing_dialog()
 
         callee_rx_port = int(payload.get("callee_rx_port", 5200))
         if self.active_peer:
@@ -454,6 +480,14 @@ class MeetLANApp:
         """Lanza los motores FFmpeg / FFplay con PiP (Fondo remoto + esquina local)."""
         self.signaling.status = "IN_CALL"
         self._update_status_bar()
+
+        # Cerrar cualquier barra de control previa
+        if self.call_control_bar:
+            try:
+                self.call_control_bar.close_bar()
+            except Exception:
+                pass
+            self.call_control_bar = None
 
         remote_ip = self.active_peer.get("ip")
         
@@ -474,21 +508,32 @@ class MeetLANApp:
         )
 
     def _on_local_hangup(self):
-        if self.active_peer:
-            self.signaling.send_hangup(self.active_peer.get("ip"))
+        peer_ip = self.active_peer.get("ip") if self.active_peer else None
+        if peer_ip:
+            self.signaling.send_hangup(peer_ip)
+            
+        if self.call_control_bar:
+            try:
+                self.call_control_bar.close_bar()
+            except Exception:
+                pass
+            self.call_control_bar = None
+            
+        self._close_incoming_dialog()
+        self._close_outgoing_dialog()
         self.engine.stop_call()
         self.signaling.status = "AVAILABLE"
-        self._update_status_bar()
         self.active_peer = None
+        self._update_status_bar()
 
     def _on_call_rejected_received(self, payload):
         self.root.after(0, self._handle_call_rejected, payload)
 
     def _handle_call_rejected(self, payload):
-        if self.outgoing_dialog:
-            self.outgoing_dialog.destroy()
-            self.outgoing_dialog = None
+        self._close_outgoing_dialog()
         self.active_peer = None
+        self.signaling.status = "AVAILABLE"
+        self._update_status_bar()
         messagebox.showinfo("Llamada", "El usuario rechazó la llamada.")
 
     def _on_call_hungup_received(self, payload):
@@ -497,21 +542,30 @@ class MeetLANApp:
     def _handle_call_hungup(self, payload):
         self.engine.stop_call()
         if self.call_control_bar:
-            self.call_control_bar.close_bar()
+            try:
+                self.call_control_bar.close_bar()
+            except Exception:
+                pass
             self.call_control_bar = None
+            
+        self._close_incoming_dialog()
+        self._close_outgoing_dialog()
         self.signaling.status = "AVAILABLE"
-        self._update_status_bar()
         self.active_peer = None
-        messagebox.showinfo("Llamada", "La videollamada ha finalizado.")
+        self._update_status_bar()
+        
+        # Notificación visual fluida en la barra de estado (sin messagebox bloqueante)
+        self.lbl_status_badge.config(text="● LLAMADA FINALIZADA", fg="#f38ba8")
+        self.root.after(2500, self._update_status_bar)
 
     def _on_call_busy_received(self, payload):
         self.root.after(0, self._handle_call_busy, payload)
 
     def _handle_call_busy(self, payload):
-        if self.outgoing_dialog:
-            self.outgoing_dialog.destroy()
-            self.outgoing_dialog = None
+        self._close_outgoing_dialog()
         self.active_peer = None
+        self.signaling.status = "AVAILABLE"
+        self._update_status_bar()
         messagebox.showwarning("Llamada", "El usuario se encuentra ocupado en otra llamada.")
 
     def _on_close(self):

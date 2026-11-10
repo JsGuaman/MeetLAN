@@ -31,33 +31,39 @@ class MediaEngine:
         
         # 1. Iniciar Transmisor (TX)
         self.tx_process = self._spawn_tx(remote_ip, remote_port)
-        time.sleep(0.5)
+        time.sleep(0.15)
         
         # 2. Iniciar Receptor Remoto (RX de fondo)
         self.rx_process = self._spawn_rx(local_rx_port)
         
         # 3. Iniciar PiP (Cámara propia en esquina inferior izquierda)
-        time.sleep(0.5)
+        time.sleep(0.15)
         self.pip_process = self._spawn_pip()
 
     def stop_call(self):
-        """Detiene de forma limpia todos los procesos de video/audio."""
+        """Detiene de forma limpia e instantánea todos los procesos de video/audio."""
         self.is_running = False
         
-        for p in [self.pip_process, self.rx_process, self.tx_process]:
-            if p and p.poll() is None:
-                try:
-                    p.terminate()
-                    p.wait(timeout=1.0)
-                except Exception:
-                    try:
-                        p.kill()
-                    except Exception:
-                        pass
-        
+        procs = [self.pip_process, self.rx_process, self.tx_process]
         self.tx_process = None
         self.rx_process = None
         self.pip_process = None
+
+        for p in procs:
+            if p and p.poll() is None:
+                try:
+                    p.kill()
+                except Exception:
+                    pass
+
+        # Asegurar liberación inmediata de sockets y hardware de ffplay
+        try:
+            if self.is_win:
+                subprocess.run(["taskkill", "/F", "/IM", "ffplay.exe"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                subprocess.run(["killall", "-9", "ffplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
 
     def _spawn_tx(self, remote_ip, remote_port):
         """Construye y ejecuta el comando FFmpeg para transmisión y split local."""
