@@ -1,0 +1,83 @@
+"""
+MeetLAN - Panel Flotante de Control de Videollamada en Curso
+Comunicaciones Multimedia - Universidad de Cuenca
+"""
+
+import tkinter as tk
+import time
+
+class CallControlBar(tk.Toplevel):
+    def __init__(self, parent, peer_info, on_hangup):
+        super().__init__(parent)
+        self.peer_info = peer_info
+        self.on_hangup = on_hangup
+        
+        self.title("MeetLAN - Control de Llamada")
+        self.geometry("450x110+420+780")  # Barra en la parte inferior central
+        self.resizable(False, False)
+        self.configure(bg="#11111b")
+        self.attributes("-topmost", True)
+        
+        self.start_time = time.time()
+        self.is_running = True
+
+        # Contenedor principal
+        f = tk.Frame(self, bg="#11111b")
+        f.pack(fill="both", expand=True, padx=15, pady=10)
+
+        # Información del contacto y tiempo
+        self.lbl_info = tk.Label(
+            f,
+            text=f"🟢 En llamada con: {peer_info.get('name', 'Compañero')} ({peer_info.get('ip', '')})",
+            bg="#11111b",
+            fg="#a6e3a1",
+            font=("Segoe UI", 11, "bold")
+        )
+        self.lbl_info.pack(pady=2)
+
+        self.lbl_timer = tk.Label(
+            f,
+            text="Duración: 00:00",
+            bg="#11111b",
+            fg="#cdd6f4",
+            font=("Segoe UI", 10)
+        )
+        self.lbl_timer.pack(pady=2)
+
+        # Botón de Colgar
+        btn_hangup = tk.Button(
+            f,
+            text="  🔴 Colgar Videollamada  ",
+            bg="#f38ba8",
+            fg="#11111b",
+            font=("Segoe UI", 11, "bold"),
+            relief="flat",
+            activebackground="#eba0ac",
+            command=self._hangup_clicked
+        )
+        btn_hangup.pack(pady=4)
+
+        # Loop de actualización del cronómetro
+        self._update_timer()
+
+    def _update_timer(self):
+        if not self.is_running:
+            return
+        elapsed = int(time.time() - self.start_time)
+        mins = elapsed // 60
+        secs = elapsed % 60
+        self.lbl_timer.config(text=f"Duración: {mins:02d}:{secs:02d}")
+        self.after(1000, self._update_timer)
+
+    def _hangup_clicked(self):
+        self.is_running = False
+        if self.on_hangup:
+            self.on_hangup()
+        self.destroy()
+
+    def close_bar(self):
+        self.is_running = False
+        try:
+            self.destroy()
+        except Exception:
+            pass

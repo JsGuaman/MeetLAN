@@ -1,0 +1,13 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Configuración local de usuario
+config.json
+.env
+.env.*
+
+# Logs y temporales
+*.log
+*.tmp

@@ -1,0 +1,263 @@
+"""
+MeetLAN - Protocolo de Señalización y Descubrimiento P2P en LAN
+Comunicaciones Multimedia - Universidad de Cuenca
+"""
+
+import socket
+import threading
+import json
+import time
+
+class SignalingManager:
+    def __init__(self, config, on_peer_discovered=None, on_incoming_call=None,
+                 on_call_accepted=None, on_call_rejected=None, on_call_hungup=None,
+                 on_call_busy=None):
+        self.config = config
+        self.port = int(config.get("signaling_port", 6000))
+        self.local_ip = None
+        self.user_name = config.get("user_name", "Usuario")
+        self.status = "AVAILABLE"  # "AVAILABLE" | "IN_CALL"
+        
+        # Callbacks de UI
+        self.on_peer_discovered = on_peer_discovered
+        self.on_incoming_call = on_incoming_call
+        self.on_call_accepted = on_call_accepted
+        self.on_call_rejected = on_call_rejected
+        self.on_call_hungup = on_call_hungup
+        self.on_call_busy = on_call_busy
+        
+        self.peers = {}  # ip -> {"name": ..., "status": ..., "last_seen": ...}
+        self.running = False
+        self.sock = None
+        self.listener_thread = None
+
+    def start(self, local_ip):
+        self.local_ip = local_ip
+        self.running = True
+        
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        
+        try:
+            self.sock.bind(("", self.port))
+            print(f"[SEÑALIZACIÓN] Escuchando en UDP 0.0.0.0:{self.port}")
+        except Exception as e:
+            print(f"[SEÑALIZACIÓN] Error al enlazar puerto {self.port}: {e}")
+            # Intentar puerto alternativo 6050
+            try:
+                self.port = 6050
+                self.sock.bind(("", self.port))
+                print(f"[SEÑALIZACIÓN] Enlazado a puerto alternativo UDP 0.0.0.0:{self.port}")
+            except Exception as e2:
+                print(f"[SEÑALIZACIÓN] Fallo crítico al enlazar socket: {e2}")
+                return False
+
+        self.listener_thread = threading.Thread(target=self._listen_loop, daemon=True)
+        self.listener_thread.start()
+        
+        # Iniciar descubrimiento inicial
+        self.scan_peers()
+        return True
+
+    def stop(self):
+        self.running = False
+        if self.sock:
+            try:
+                self.sock.close()
+            except Exception:
+                pass
+
+    def scan_peers(self):
+        """Envía saludo broadcast y sondeo rápido en subred /24."""
+        if not self.sock or not self.local_ip:
+            return
+        
+        msg = json.dumps({
+            "type": "DISCOVERY_PING",
+            "name": self.user_name,
+            "ip": self.local_ip,
+            "status": self.status
+        }).encode("utf-8")
+
+        # 1. Broadcast global y de subred
+        try:
+            self.sock.sendto(msg, ("255.255.255.255", self.port))
+            parts = self.local_ip.split(".")
+            if len(parts) == 4:
+                subnet_bcast = f"{parts[0]}.{parts[1]}.{parts[2]}.255"
+                self.sock.sendto(msg, (subnet_bcast, self.port))
+        except Exception as e:
+            print(f"[DESCUBRIMIENTO] Error en broadcast: {e}")
+
+        # 2. Sondeo en hilo de fondo a la subred /24 (por si el AP aísla broadcasts)
+        threading.Thread(target=self._subnet_ping_worker, args=(msg,), daemon=True).start()
+
+    def _subnet_ping_worker(self, msg):
+        parts = self.local_ip.split(".")
+        if len(parts) != 4:
+            return
+        base = f"{parts[0]}.{parts[1]}.{parts[2]}"
+        my_last = int(parts[3])
+        
+        for host in range(1, 255):
+            if host == my_last:
+                continue
+            target_ip = f"{base}.{host}"
+            try:
+                self.sock.sendto(msg, (target_ip, self.port))
+            except Exception:
+                pass
+            time.sleep(0.005)  # 5 ms entre envíos para no saturar enlace Wi-Fi
+
+    def send_call_offer(self, target_ip):
+        """Inicia una llamada hacia target_ip."""
+        msg = json.dumps({
+            "type": "CALL_OFFER",
+            "caller_name": self.user_name,
+            "caller_ip": self.local_ip,
+            "caller_rx_port": self.config.get("rx_port", 5000),
+            "caller_tx_port": self.config.get("tx_port", 5001)
+        }).encode("utf-8")
+        
+        try:
+            self.sock.sendto(msg, (target_ip, self.port))
+            print(f"[LLAMADA] Oferta de llamada enviada a {target_ip}:{self.port}")
+            return True
+        except Exception as e:
+            print(f"[LLAMADA] Error al enviar oferta: {e}")
+            return False
+
+    def send_call_accept(self, target_ip):
+        """Acepta la llamada entrante."""
+        self.status = "IN_CALL"
+        msg = json.dumps({
+            "type": "CALL_ACCEPT",
+            "callee_name": self.user_name,
+            "callee_ip": self.local_ip,
+            "callee_rx_port": self.config.get("rx_port", 5000),
+            "callee_tx_port": self.config.get("tx_port", 5001)
+        }).encode("utf-8")
+        try:
+            self.sock.sendto(msg, (target_ip, self.port))
+        except Exception as e:
+            print(f"[LLAMADA] Error al enviar aceptación: {e}")
+
+    def send_call_reject(self, target_ip):
+        """Rechaza la llamada entrante."""
+        msg = json.dumps({
+            "type": "CALL_REJECT",
+            "callee_name": self.user_name,
+            "reason": "USER_REJECTED"
+        }).encode("utf-8")
+        try:
+            self.sock.sendto(msg, (target_ip, self.port))
+        except Exception as e:
+            print(f"[LLAMADA] Error al enviar rechazo: {e}")
+
+    def send_hangup(self, target_ip):
+        """Finaliza la llamada activa."""
+        self.status = "AVAILABLE"
+        msg = json.dumps({
+            "type": "CALL_HANGUP",
+            "from_name": self.user_name,
+            "from_ip": self.local_ip
+        }).encode("utf-8")
+        try:
+            self.sock.sendto(msg, (target_ip, self.port))
+        except Exception as e:
+            print(f"[LLAMADA] Error al enviar colgar: {e}")
+
+    def _listen_loop(self):
+        while self.running:
+            try:
+                data, addr = self.sock.recvfrom(4096)
+                if not data:
+                    continue
+                sender_ip = addr[0]
+                if sender_ip == self.local_ip:
+                    # Ignorar paquetes propios
+                    continue
+                
+                # Intentar parsear JSON
+                try:
+                    payload = json.loads(data.decode("utf-8", errors="ignore"))
+                except Exception:
+                    # Soporte para el saludo de interciclo antiguo b"LLAMADA"
+                    if data.strip() == b"LLAMADA":
+                        payload = {"type": "CALL_OFFER", "caller_name": "Terminal", "caller_ip": sender_ip}
+                    else:
+                        continue
+                
+                p_type = payload.get("type", "")
+                
+                # 1. Descubrimiento PING
+                if p_type == "DISCOVERY_PING":
+                    peer_name = payload.get("name", "Desconocido")
+                    peer_status = payload.get("status", "AVAILABLE")
+                    self.peers[sender_ip] = {
+                        "name": peer_name,
+                        "ip": sender_ip,
+                        "status": peer_status,
+                        "last_seen": time.time()
+                    }
+                    if self.on_peer_discovered:
+                        self.on_peer_discovered(self.peers)
+                    
+                    # Responder con PONG
+                    pong = json.dumps({
+                        "type": "DISCOVERY_PONG",
+                        "name": self.user_name,
+                        "ip": self.local_ip,
+                        "status": self.status
+                    }).encode("utf-8")
+                    self.sock.sendto(pong, (sender_ip, self.port))
+
+                # 2. Descubrimiento PONG
+                elif p_type == "DISCOVERY_PONG":
+                    peer_name = payload.get("name", "Desconocido")
+                    peer_status = payload.get("status", "AVAILABLE")
+                    self.peers[sender_ip] = {
+                        "name": peer_name,
+                        "ip": sender_ip,
+                        "status": peer_status,
+                        "last_seen": time.time()
+                    }
+                    if self.on_peer_discovered:
+                        self.on_peer_discovered(self.peers)
+
+                # 3. Oferta de llamada entrante
+                elif p_type == "CALL_OFFER":
+                    if self.status == "IN_CALL":
+                        busy_msg = json.dumps({"type": "CALL_BUSY"}).encode("utf-8")
+                        self.sock.sendto(busy_msg, (sender_ip, self.port))
+                    else:
+                        if self.on_incoming_call:
+                            self.on_incoming_call(payload)
+
+                # 4. Llamada aceptada
+                elif p_type == "CALL_ACCEPT":
+                    self.status = "IN_CALL"
+                    if self.on_call_accepted:
+                        self.on_call_accepted(payload)
+
+                # 5. Llamada rechazada
+                elif p_type == "CALL_REJECT":
+                    self.status = "AVAILABLE"
+                    if self.on_call_rejected:
+                        self.on_call_rejected(payload)
+
+                # 6. Colgar llamada
+                elif p_type == "CALL_HANGUP":
+                    self.status = "AVAILABLE"
+                    if self.on_call_hungup:
+                        self.on_call_hungup(payload)
+
+                # 7. Usuario ocupado
+                elif p_type == "CALL_BUSY":
+                    if self.on_call_busy:
+                        self.on_call_busy(payload)
+
+            except Exception as e:
+                if self.running:
+                    time.sleep(0.05)
