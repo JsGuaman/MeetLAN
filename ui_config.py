@@ -14,12 +14,33 @@ class ConfigDialog(tk.Toplevel):
     def __init__(self, parent, config, on_saved=None):
         super().__init__(parent)
         self.title("Configuración de Parámetros - MeetLAN")
-        self.geometry("640x720")
-        self.resizable(False, False)
         self.config = config
         self.on_saved = on_saved
         self.is_win = platform.system() == "Windows"
         
+        # Tamaño de ventana adaptativo a la resolución de pantalla
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        win_w = min(680, max(580, screen_w - 60))
+        win_h = min(600, max(460, screen_h - 100))
+
+        # Centrar sobre la ventana padre o la pantalla
+        try:
+            parent.update_idletasks()
+            px = parent.winfo_rootx()
+            py = parent.winfo_rooty()
+            pw = parent.winfo_width()
+            ph = parent.winfo_height()
+            x = max(10, px + (pw - win_w) // 2)
+            y = max(10, py + (ph - win_h) // 2)
+        except Exception:
+            x = max(10, (screen_w - win_w) // 2)
+            y = max(10, (screen_h - win_h) // 2)
+
+        self.geometry(f"{win_w}x{win_h}+{x}+{y}")
+        self.minsize(560, 440)
+        self.resizable(True, True)
+
         self.configure(bg="#1e1e2e")
         self.transient(parent)
         self.grab_set()
@@ -37,8 +58,21 @@ class ConfigDialog(tk.Toplevel):
         style.configure("TLabel", background="#1e1e2e", foreground="#cdd6f4", font=("Segoe UI", 9))
         style.configure("TCombobox", fieldbackground="#313244", foreground="#cdd6f4")
 
+        # 1. BOTONES INFERIORES PRIMERO (Garantiza que SIEMPRE sean visibles y accesibles en Linux/Windows)
+        btn_frame = tk.Frame(self, bg="#1e1e2e")
+        btn_frame.pack(side="bottom", fill="x", padx=15, pady=10)
+
+        btn_cancel = tk.Button(btn_frame, text="Cancelar", bg="#45475a", fg="#cdd6f4", font=("Segoe UI", 10),
+                               relief="flat", padx=15, pady=5, command=self.destroy)
+        btn_cancel.pack(side="right", padx=5)
+
+        btn_save = tk.Button(btn_frame, text=" Guardar Cambios ", bg="#a6e3a1", fg="#11111b", font=("Segoe UI", 10, "bold"),
+                             relief="flat", padx=15, pady=5, command=self._save_changes)
+        btn_save.pack(side="right", padx=5)
+
+        # 2. Pestañas (Notebook) ocupando el espacio restante superior
         notebook = ttk.Notebook(self)
-        notebook.pack(fill="both", expand=True, padx=15, pady=15)
+        notebook.pack(side="top", fill="both", expand=True, padx=15, pady=(15, 0))
 
         # Pestañas
         tab_devices = ttk.Frame(notebook)
@@ -57,18 +91,6 @@ class ConfigDialog(tk.Toplevel):
         self._build_video_tab(tab_video)
         self._build_audio_tab(tab_audio)
         self._build_network_tab(tab_network)
-
-        # Botones inferiores
-        btn_frame = tk.Frame(self, bg="#1e1e2e")
-        btn_frame.pack(fill="x", padx=15, pady=10)
-
-        btn_cancel = tk.Button(btn_frame, text="Cancelar", bg="#45475a", fg="#cdd6f4", font=("Segoe UI", 10),
-                               relief="flat", padx=15, pady=5, command=self.destroy)
-        btn_cancel.pack(side="right", padx=5)
-
-        btn_save = tk.Button(btn_frame, text="Guardar Cambios", bg="#a6e3a1", fg="#11111b", font=("Segoe UI", 10, "bold"),
-                             relief="flat", padx=15, pady=5, command=self._save_changes)
-        btn_save.pack(side="right", padx=5)
 
     def _build_devices_tab(self, parent):
         f = tk.Frame(parent, bg="#1e1e2e")
@@ -228,12 +250,21 @@ class ConfigDialog(tk.Toplevel):
         entry_aresample = tk.Entry(f, textvariable=self.var_aresample, bg="#313244", fg="#cdd6f4", insertbackground="white", width=25)
         entry_aresample.grid(row=3, column=1, sticky="e", pady=6)
 
+    def destroy(self):
+        try:
+            self.unbind_all("<Button-4>")
+            self.unbind_all("<Button-5>")
+            self.unbind_all("<MouseWheel>")
+        except Exception:
+            pass
+        super().destroy()
+
     def _create_discrete_slider_row(self, parent, label_text, color, var_port, options, test_name, desc_text):
-        lbl = tk.Label(parent, text=label_text, bg="#1e1e2e", fg=color, font=("Segoe UI", 10, "bold"))
-        lbl.pack(anchor="w", pady=(6, 2))
+        lbl = tk.Label(parent, text=label_text, bg="#1e1e2e", fg=color, font=("Segoe UI", 9, "bold"))
+        lbl.pack(anchor="w", pady=(3, 1))
 
         frame = tk.Frame(parent, bg="#1e1e2e")
-        frame.pack(fill="x", pady=(0, 4))
+        frame.pack(fill="x", pady=(0, 2))
 
         # Entry editable directo
         entry = tk.Entry(frame, textvariable=var_port, bg="#313244", fg="#cdd6f4", width=7, font=("Consolas", 10, "bold"), insertbackground="white")
@@ -281,8 +312,40 @@ class ConfigDialog(tk.Toplevel):
         lbl_desc.pack(side="left", padx=2)
 
     def _build_network_tab(self, parent):
-        f = tk.Frame(parent, bg="#1e1e2e")
-        f.pack(fill="both", expand=True, padx=20, pady=10)
+        # Contenedor con Scrollbar vertical para adaptarse a cualquier resolución de pantalla
+        canvas = tk.Canvas(parent, bg="#1e1e2e", highlightthickness=0)
+        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg="#1e1e2e")
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas_frame = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+
+        def _on_canvas_configure(event):
+            canvas.itemconfig(canvas_frame, width=event.width)
+
+        canvas.bind("<Configure>", _on_canvas_configure)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Scroll con rueda del ratón
+        def _on_mousewheel(event):
+            if event.num == 5 or event.delta < 0:
+                canvas.yview_scroll(2, "units")
+            elif event.num == 4 or event.delta > 0:
+                canvas.yview_scroll(-2, "units")
+
+        canvas.bind_all("<Button-4>", _on_mousewheel)
+        canvas.bind_all("<Button-5>", _on_mousewheel)
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        f = tk.Frame(scrollable_frame, bg="#1e1e2e")
+        f.pack(fill="both", expand=True, padx=15, pady=8)
 
         # 1. Puerto RX Local con Slider Discreto
         self.var_rx_port = tk.IntVar(value=self.config.get("rx_port", 5200))
@@ -310,7 +373,7 @@ class ConfigDialog(tk.Toplevel):
 
         # 4. Parámetros de búferes
         frame_buffers = tk.Frame(f, bg="#1e1e2e")
-        frame_buffers.pack(fill="x", pady=8)
+        frame_buffers.pack(fill="x", pady=6)
 
         tk.Label(frame_buffers, text="Búfer FIFO UDP (Bytes):", bg="#1e1e2e", fg="#cdd6f4", font=("Segoe UI", 9)).pack(side="left", padx=(0, 4))
         self.var_fifo = tk.IntVar(value=self.config.get("fifo_size", 0))
@@ -323,8 +386,8 @@ class ConfigDialog(tk.Toplevel):
         cb_rtbuf.pack(side="left")
 
         # 5. Cuadro explicativo
-        tip_frame = tk.Frame(f, bg="#313244", padx=10, pady=8)
-        tip_frame.pack(fill="x", pady=(6, 6))
+        tip_frame = tk.Frame(f, bg="#313244", padx=10, pady=6)
+        tip_frame.pack(fill="x", pady=(4, 4))
         tip_lbl = (
             "💡 ¿Cómo se selecciona el puerto de transmisión (TX)?\n"
             "• Al llamar a un contacto de la lista, la señalización P2P negocia el puerto automáticamente:\n"
@@ -335,24 +398,24 @@ class ConfigDialog(tk.Toplevel):
         tk.Label(tip_frame, text=tip_lbl, bg="#313244", fg="#a6adc8", font=("Segoe UI", 8), justify="left").pack(anchor="w")
 
         # 6. Sección Firewall 1-Clic
-        fw_frame = tk.Frame(f, bg="#24273a", padx=12, pady=10, relief="groove", bd=1)
+        fw_frame = tk.Frame(f, bg="#24273a", padx=10, pady=8, relief="groove", bd=1)
         fw_frame.pack(fill="x", pady=(4, 4))
         
         os_name = "Windows Defender" if self.is_win else "UFW / iptables (Linux / Kali)"
         tk.Label(
             fw_frame, text=f"🛡️ Configuración de Firewall ({os_name})",
             bg="#24273a", fg="#fab387", font=("Segoe UI", 10, "bold")
-        ).pack(anchor="w", pady=(0, 4))
+        ).pack(anchor="w", pady=(0, 3))
         
         fw_desc = (
             "Abre ÚNICAMENTE los puertos seleccionados arriba (Señalización + RX) en el firewall,\n"
             "sin habilitar puertos innecesarios para garantizar la máxima seguridad de tu equipo."
         )
-        tk.Label(fw_frame, text=fw_desc, bg="#24273a", fg="#cdd6f4", font=("Segoe UI", 8), justify="left").pack(anchor="w", pady=(0, 6))
+        tk.Label(fw_frame, text=fw_desc, bg="#24273a", fg="#cdd6f4", font=("Segoe UI", 8), justify="left").pack(anchor="w", pady=(0, 5))
 
         btn_apply_fw = tk.Button(
             fw_frame, text=" 🛡️ Abrir Puertos Seleccionados en Firewall (1 Clic) ",
-            bg="#fab387", fg="#11111b", font=("Segoe UI", 9, "bold"), relief="flat", padx=12, pady=5,
+            bg="#fab387", fg="#11111b", font=("Segoe UI", 9, "bold"), relief="flat", padx=12, pady=4,
             command=self._apply_firewall_action
         )
         btn_apply_fw.pack(anchor="w")

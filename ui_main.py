@@ -19,8 +19,16 @@ class MeetLANApp:
     def __init__(self, root):
         self.root = root
         self.root.title("MeetLAN - Sistema de Videollamada P2P en Tiempo Real")
-        self.root.geometry("680x580")
-        self.root.minsize(620, 500)
+        
+        # Geometría adaptativa y centrada en pantalla
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+        w = min(700, max(600, screen_w - 60))
+        h = min(600, max(480, screen_h - 80))
+        x = max(10, (screen_w - w) // 2)
+        y = max(10, (screen_h - h) // 2)
+        self.root.geometry(f"{w}x{h}+{x}+{y}")
+        self.root.minsize(600, 460)
         self.root.configure(bg="#181825")
 
         self.config = load_config()
@@ -299,10 +307,20 @@ class MeetLANApp:
         self.signaling.send_call_offer(target_ip)
         self._show_outgoing_call_dialog(peer_data)
 
+    def _center_toplevel(self, win, w, h):
+        self.root.update_idletasks()
+        rx = self.root.winfo_x()
+        ry = self.root.winfo_y()
+        rw = self.root.winfo_width()
+        rh = self.root.winfo_height()
+        x = max(10, rx + (rw - w) // 2)
+        y = max(10, ry + (rh - h) // 2)
+        win.geometry(f"{w}x{h}+{x}+{y}")
+
     def _show_outgoing_call_dialog(self, peer_data):
         self.outgoing_dialog = tk.Toplevel(self.root)
         self.outgoing_dialog.title("Llamando...")
-        self.outgoing_dialog.geometry("360x180")
+        self._center_toplevel(self.outgoing_dialog, 360, 180)
         self.outgoing_dialog.resizable(False, False)
         self.outgoing_dialog.configure(bg="#1e1e2e")
         self.outgoing_dialog.transient(self.root)
@@ -357,7 +375,7 @@ class MeetLANApp:
         # 2. Mostrar diálogo modal con Aceptar y Rechazar
         self.incoming_dialog = tk.Toplevel(self.root)
         self.incoming_dialog.title("Llamada Entrante")
-        self.incoming_dialog.geometry("380x200")
+        self._center_toplevel(self.incoming_dialog, 380, 210)
         self.incoming_dialog.resizable(False, False)
         self.incoming_dialog.configure(bg="#1e1e2e")
         self.incoming_dialog.attributes("-topmost", True)

@@ -13,7 +13,15 @@ class CallControlBar(tk.Toplevel):
         self.on_hangup = on_hangup
         
         self.title("MeetLAN - Control de Llamada")
-        self.geometry("450x110+420+780")  # Barra en la parte inferior central
+        
+        # Posicionamiento dinámico adaptativo a la resolución de pantalla
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        bar_w = 460
+        bar_h = 120
+        x = max(10, (screen_w - bar_w) // 2)
+        y = max(30, screen_h - bar_h - 70)
+        self.geometry(f"{bar_w}x{bar_h}+{x}+{y}")
         self.resizable(False, False)
         self.configure(bg="#11111b")
         self.attributes("-topmost", True)
