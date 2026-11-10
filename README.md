@@ -111,3 +111,10 @@ Haciendo clic en **"⚙️ Configuración"**, puedes modificar en tiempo real:
 * **Fondo:** Se abre la ventana en tiempo real con el video y audio de tu compañero.
 * **Esquina Inferior Izquierda:** Aparece la miniatura flotante con tu propia cámara (PiP), permitiéndote verificar tu encuadre tal como en WhatsApp Video.
 * **Barra Flotante:** Un panel compacto te muestra la duración de la llamada y el botón **"🔴 Colgar Videollamada"**, el cual detiene de inmediato los procesos en ambos extremos de la conexión.
+
+---
+
+## 5. Licencia
+
+Este proyecto está bajo la Licencia de Código Abierto **GNU General Public License v3.0 (GNU GPLv3)**. Consulta el archivo [LICENSE](LICENSE) para más detalles.
+
