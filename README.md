@@ -2,7 +2,7 @@
 
 **Asignatura:** Comunicaciones Multimedia  
 **Facultad:** Facultad de Ingeniería, Universidad de Cuenca  
-**Estudiante:** Jose Guaman  
+**Estudiantes:** Jose Guaman, Franklin Benalcazar  
 **Plataformas Soportadas:** Windows 10/11, GNU/Linux Ubuntu y Kali Linux (Debian)  
 
 ---
