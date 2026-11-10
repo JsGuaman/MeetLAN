@@ -3,7 +3,7 @@
 **Asignatura:** Comunicaciones Multimedia  
 **Facultad:** Facultad de Ingeniería, Universidad de Cuenca  
 **Estudiante:** Jose Guaman  
-**Plataformas Soportadas:** Windows 10/11 y GNU/Linux Ubuntu  
+**Plataformas Soportadas:** Windows 10/11, GNU/Linux Ubuntu y Kali Linux (Debian)  
 
 ---
 
@@ -32,7 +32,7 @@ Incorpora todos los hallazgos y optimizaciones de latencia ultrabaja desarrollad
    *(O desde PowerShell / CMD: `python main.py`)*.
 
 ### En Ubuntu / GNU/Linux:
-1. Abre una terminal en la carpeta `MeetLAN` e instala las dependencias del sistema (FFmpeg, Python-TK, PulseAudio, V4L2 y UFW):
+1. Abre una terminal en la carpeta `MeetLAN` e instala las dependencias:
    ```bash
    chmod +x install_ubuntu.sh run_meetlan.sh abrir_firewall_linux.sh
    ./install_ubuntu.sh
@@ -41,6 +41,18 @@ Incorpora todos los hallazgos y optimizaciones de latencia ultrabaja desarrollad
    ```bash
    ./run_meetlan.sh
    ```
+
+### En Kali Linux / Debian:
+1. En tu terminal (como root o usuario estándar), ejecuta el instalador optimizado para Kali:
+   ```bash
+   chmod +x install_kali.sh run_meetlan.sh abrir_firewall_linux.sh
+   ./install_kali.sh
+   ```
+2. Ejecuta la aplicación:
+   ```bash
+   ./run_meetlan.sh
+   ```
+   *(Nota: Si pruebas en una Máquina Virtual sin cámara física USB conectada, MeetLAN activará automáticamente una cámara virtual de prueba `lavfi testsrc` para que puedas probar toda la llamada y transmisión sin errores).*
 
 ---
 

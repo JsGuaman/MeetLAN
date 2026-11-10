@@ -88,23 +88,61 @@ class MediaEngine:
                 "-i", f"video={v_dev}:audio={a_dev}"
             ])
         else:
-            # GNU/Linux (Ubuntu)
+            # GNU/Linux (Ubuntu / Debian / Kali Linux)
             lin_devs = self.config.get("devices", {}).get("linux", {})
             v_dev = lin_devs.get("video", "/dev/video0")
-            a_dev = lin_devs.get("audio", "default")
+            raw_a = lin_devs.get("audio", "pulse:default")
             w = str(self.config.get("width", 640))
             h = str(self.config.get("height", 480))
             
-            cmd.extend([
-                "-thread_queue_size", "1024",
-                "-f", "v4l2",
-                "-video_size", f"{w}x{h}",
-                "-framerate", fps,
-                "-i", v_dev,
-                "-thread_queue_size", "1024",
-                "-f", "pulse",
-                "-i", a_dev
-            ])
+            # 1. Configuración de Entrada de Video (V4L2 o lavfi de prueba en VMs de Kali)
+            if v_dev.startswith("lavfi:") or not os.path.exists(v_dev):
+                print(f"[ENGINE TX] Usando cámara virtual de prueba lavfi testsrc (nodo {v_dev} ausente)")
+                cmd.extend([
+                    "-f", "lavfi",
+                    "-i", f"testsrc=size={w}x{h}:rate={fps}"
+                ])
+            else:
+                cmd.extend([
+                    "-thread_queue_size", "1024",
+                    "-f", "v4l2",
+                    "-video_size", f"{w}x{h}",
+                    "-framerate", fps,
+                    "-i", v_dev
+                ])
+
+            # 2. Configuración de Entrada de Audio (PulseAudio / ALSA / lavfi)
+            if raw_a.startswith("lavfi:") or raw_a == "none":
+                cmd.extend([
+                    "-f", "lavfi",
+                    "-i", "anullsrc=channel_layout=mono:sample_rate=44100"
+                ])
+            elif raw_a.startswith("alsa:"):
+                alsa_target = raw_a.split(":", 1)[1]
+                cmd.extend([
+                    "-thread_queue_size", "1024",
+                    "-f", "alsa",
+                    "-i", alsa_target
+                ])
+            elif raw_a.startswith("pulse:"):
+                pulse_target = raw_a.split(":", 1)[1]
+                cmd.extend([
+                    "-thread_queue_size", "1024",
+                    "-f", "pulse",
+                    "-i", pulse_target
+                ])
+            elif raw_a.startswith("hw:") or raw_a.startswith("plughw:"):
+                cmd.extend([
+                    "-thread_queue_size", "1024",
+                    "-f", "alsa",
+                    "-i", raw_a
+                ])
+            else:
+                cmd.extend([
+                    "-thread_queue_size", "1024",
+                    "-f", "pulse",
+                    "-i", raw_a
+                ])
 
         # Filtro Split: 1 flujo para enviar a la red, 1 flujo miniatura local
         filter_str = "[0:v]split=2[tx_v][local_v]; [local_v]scale=220:165[pip_v]"

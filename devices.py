@@ -111,7 +111,6 @@ def _get_linux_devices():
     audio_devices = []
     
     # 1. Detectar Video en Linux (V4L2)
-    # Revisar /sys/class/video4linux/
     v4l2_paths = sorted(glob.glob("/sys/class/video4linux/video*"))
     for vpath in v4l2_paths:
         vnode = "/dev/" + os.path.basename(vpath)
@@ -131,39 +130,70 @@ def _get_linux_devices():
             "is_default": (vnode == "/dev/video0")
         })
         
-    if not video_devices:
-        video_devices.append({
-            "display_name": "Cámara Web Predeterminada (/dev/video0)",
-            "ffmpeg_id": "/dev/video0",
-            "alt_id": "/dev/video0",
-            "is_default": True
-        })
+    # Añadir siempre opción de cámara virtual de prueba (ideal para Kali en Máquinas Virtuales)
+    video_devices.append({
+        "display_name": "Cámara Virtual de Prueba (lavfi testsrc)",
+        "ffmpeg_id": "lavfi:testsrc",
+        "alt_id": "lavfi:testsrc",
+        "is_default": (len(video_devices) == 0)
+    })
         
-    # 2. Detectar Audio en Linux (PulseAudio / ALSA)
+    # 2. Detectar Audio en Linux (PulseAudio / PipeWire / ALSA)
     audio_devices.append({
-        "display_name": "Micrófono Predeterminado del Sistema (PulseAudio default)",
-        "ffmpeg_id": "default",
-        "alt_id": "default",
+        "display_name": "Micrófono Predeterminado (PulseAudio / PipeWire)",
+        "ffmpeg_id": "pulse:default",
+        "alt_id": "pulse:default",
         "is_default": True
     })
     
-    # Intentar pactl list short sources
+    # Intentar detectar fuentes PulseAudio vía pactl
     try:
         res = subprocess.run(["pactl", "list", "short", "sources"], capture_output=True, text=True, timeout=2)
         for line in res.stdout.splitlines():
             parts = line.split("\t")
             if len(parts) >= 2:
                 src_name = parts[1]
-                # Filtrar solo entradas (micrófonos, ignorar monitors)
                 if "monitor" not in src_name:
                     audio_devices.append({
                         "display_name": f"Fuente PulseAudio: {src_name}",
-                        "ffmpeg_id": src_name,
-                        "alt_id": src_name,
+                        "ffmpeg_id": f"pulse:{src_name}",
+                        "alt_id": f"pulse:{src_name}",
                         "is_default": False
                     })
     except Exception:
         pass
+
+    # Detectar dispositivos ALSA directamente (clave en Kali Linux si PulseAudio está inactivo)
+    audio_devices.append({
+        "display_name": "Micrófono Directo ALSA (default)",
+        "ffmpeg_id": "alsa:default",
+        "alt_id": "alsa:default",
+        "is_default": False
+    })
+
+    try:
+        res_alsa = subprocess.run(["arecord", "-l"], capture_output=True, text=True, timeout=2)
+        for line in res_alsa.stdout.splitlines():
+            m = re.search(r"card (\d+):.*\[(.*?)\], device (\d+):.*\[(.*?)\]", line)
+            if m:
+                card_num, card_name, dev_num, dev_name = m.groups()
+                dev_id = f"hw:{card_num},{dev_num}"
+                audio_devices.append({
+                    "display_name": f"ALSA {card_name} ({dev_id})",
+                    "ffmpeg_id": f"alsa:{dev_id}",
+                    "alt_id": f"alsa:{dev_id}",
+                    "is_default": False
+                })
+    except Exception:
+        pass
+
+    # Opción audio mudo de prueba
+    audio_devices.append({
+        "display_name": "Sin micrófono (Audio mudo de prueba lavfi)",
+        "ffmpeg_id": "lavfi:anullsrc",
+        "alt_id": "lavfi:anullsrc",
+        "is_default": False
+    })
         
     return video_devices, audio_devices
 

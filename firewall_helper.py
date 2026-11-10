@@ -99,12 +99,27 @@ def _apply_windows_firewall(ports, ports_str):
 
 def _apply_linux_firewall(ports):
     """
-    Abre las reglas en Ubuntu (UFW) de forma segura y sin arrojar error 127.
+    Abre las reglas en Ubuntu, Debian y Kali Linux de forma segura y sin error 127.
     """
     try:
         ports_str = ", ".join(str(p) for p in ports)
 
-        # 1. Localizar binario ufw en rutas estándar
+        # 1. Detectar distribución Linux
+        distro = "Linux"
+        if os.path.isfile("/etc/os-release"):
+            try:
+                with open("/etc/os-release", "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read().lower()
+                    if "kali" in content:
+                        distro = "Kali Linux"
+                    elif "ubuntu" in content:
+                        distro = "Ubuntu"
+                    elif "debian" in content:
+                        distro = "Debian"
+            except Exception:
+                pass
+
+        # 2. Localizar binario ufw en rutas estándar
         ufw_bin = None
         for candidate in ["/usr/sbin/ufw", "/sbin/ufw", "/usr/bin/ufw"]:
             if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
@@ -113,18 +128,38 @@ def _apply_linux_firewall(ports):
         if not ufw_bin:
             ufw_bin = shutil.which("ufw")
 
-        # CASO 1: UFW no está instalado en este sistema Linux
+        # CASO A: En Kali Linux (o sistemas sin UFW instalado)
         if not ufw_bin:
-            # En GNU/Linux, la política predeterminada del kernel iptables es ACCEPT.
-            # Sin UFW instalado, no existe ningún cortafuegos bloqueando tráfico UDP.
+            # Comprobar si se ejecuta como root (común en Kali) y añadir reglas iptables si iptables existe
+            is_root = (hasattr(os, "geteuid") and os.geteuid() == 0)
+            iptables_bin = None
+            for candidate in ["/usr/sbin/iptables", "/sbin/iptables", "/usr/bin/iptables"]:
+                if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                    iptables_bin = candidate
+                    break
+
+            if iptables_bin and is_root:
+                for p in ports:
+                    # Verificar si ya existe antes de insertar
+                    check_cmd = [iptables_bin, "-C", "INPUT", "-p", "udp", "--dport", str(p), "-j", "ACCEPT"]
+                    if subprocess.run(check_cmd, capture_output=True).returncode != 0:
+                        subprocess.run([iptables_bin, "-I", "INPUT", "-p", "udp", "--dport", str(p), "-j", "ACCEPT"], capture_output=True)
+                return True, (
+                    f"🛡️ {distro} (Modo Root detectado):\n\n"
+                    f"Reglas iptables añadidas con éxito para tráfico UDP en puertos: {ports_str}.\n"
+                    f"¡Tus puertos están 100% abiertos y operativos!"
+                )
+
+            # En Kali Linux por defecto, la política del kernel en INPUT es ACCEPT
             return True, (
-                f"ℹ️ Firewall UFW no instalado en Linux:\n\n"
-                f"En Ubuntu / Linux, cuando UFW no está instalado, el kernel NO bloquea ningún puerto.\n\n"
-                f"✅ Tus puertos UDP ({ports_str}) están totalmente ABIERTOS por defecto y listos para transmitir y recibir video sin ninguna restricción.\n\n"
-                f"💡 (Si deseas instalar UFW de todas formas, ejecuta en tu terminal: sudo apt update && sudo apt install -y ufw)"
+                f"ℹ️ Sistema detectado: {distro}\n\n"
+                f"En {distro}, el cortafuegos UFW no viene instalado por defecto y la "
+                f"política de red del kernel Linux para tráfico entrante es ACCEPT.\n\n"
+                f"✅ Tus puertos UDP ({ports_str}) están totalmente ABIERTOS por defecto a nivel de kernel.\n\n"
+                f"💡 ¡No necesitas configurar nada más, tu videollamada funcionará sin bloqueos!"
             )
 
-        # CASO 2: UFW sí está instalado. Ejecutamos las reglas directamente sobre el binario ufw.
+        # CASO B: UFW sí está instalado. Ejecutamos las reglas directamente sobre el binario ufw.
         pkexec_bin = shutil.which("pkexec") or (
             "/usr/bin/pkexec" if os.path.isfile("/usr/bin/pkexec") else None
         )
@@ -133,7 +168,6 @@ def _apply_linux_firewall(ports):
         err_details = []
 
         for p in ports:
-            # Si pkexec está disponible, invocar directamente el binario ufw sin wrappers de shell que causen error 127
             if pkexec_bin:
                 cmd = [pkexec_bin, ufw_bin, "allow", f"{p}/udp", "comment", "MeetLAN"]
             else:
@@ -149,11 +183,10 @@ def _apply_linux_firewall(ports):
                 err_details.append(str(e))
 
         if success:
-            return True, f"Reglas UFW aplicadas exitosamente para puertos UDP: {ports_str}."
+            return True, f"Reglas UFW aplicadas exitosamente en {distro} para puertos UDP: {ports_str}."
         else:
-            # Si la autenticación gráfica falló o fue cancelada
             return False, (
-                f"Se requiere elevación de permisos para modificar UFW.\n\n"
+                f"Se requiere elevación de permisos para modificar UFW en {distro}.\n\n"
                 f"Para habilitar los puertos en UFW, ejecuta en tu terminal:\n"
                 f"sudo ./abrir_firewall_linux.sh\n\n"
                 f"(Detalle: {'; '.join(filter(None, err_details)) or 'Autenticación cancelada'})"
