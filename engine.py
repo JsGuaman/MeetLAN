@@ -83,7 +83,27 @@ class MediaEngine:
         if self.is_win:
             win_devs = self.config.get("devices", {}).get("windows", {})
             v_dev = win_devs.get("video", "FaceTime HD Camera (Built-in)")
-            a_dev = win_devs.get("audio", "@device_cm_{33D9A762-90C8-11D0-BD43-00A0C911CE86}\\wave_{F0032157-24DD-4BEB-8357-70A9E7997E47}")
+            a_dev = win_devs.get("audio", "")
+
+            # Validación dinámica de dispositivos físicos disponibles en Windows
+            try:
+                from devices import get_available_devices
+                det_v, det_a = get_available_devices()
+                
+                # Validar video
+                if not any(d["ffmpeg_id"] == v_dev or d["display_name"] == v_dev for d in det_v) and det_v:
+                    v_dev = det_v[0]["ffmpeg_id"]
+                    print(f"[ENGINE TX] Cámara previa no encontrada, usando disponible: {det_v[0]['display_name']}")
+                    
+                # Validar audio (fallback si el Bluetooth fue desconectado)
+                if not any(d["ffmpeg_id"] == a_dev or d["display_name"] == a_dev or d.get("alt_id") == a_dev for d in det_a) and det_a:
+                    a_dev = det_a[0]["ffmpeg_id"]
+                    print(f"[ENGINE TX] Micrófono previo desconectado, usando disponible: {det_a[0]['display_name']}")
+            except Exception as e:
+                print(f"[ENGINE TX] Error al autovalidar hardware: {e}")
+
+            if not v_dev:
+                v_dev = "FaceTime HD Camera (Built-in)"
             
             cmd.extend([
                 "-rtbufsize", str(self.config.get("rtbufsize", "250M")),
@@ -91,7 +111,7 @@ class MediaEngine:
                 "-framerate", fps,
                 "-f", "dshow",
                 "-use_video_device_timestamps", "false",
-                "-i", f"video={v_dev}:audio={a_dev}"
+                "-i", f"video={v_dev}:audio={a_dev}" if a_dev else f"video={v_dev}"
             ])
         else:
             # GNU/Linux (Ubuntu / Debian / Kali Linux)
@@ -198,7 +218,8 @@ class MediaEngine:
     def _spawn_rx(self, local_rx_port):
         """Abre la ventana principal FFplay para el flujo remoto de fondo."""
         fifo = self.config.get("fifo_size", 0)
-        rx_url = f"udp://0.0.0.0:{local_rx_port}?fifo_size={fifo}&overrun_nonfatal=1"
+        fifo_param = f"&fifo_size={fifo}" if fifo > 0 else ""
+        rx_url = f"udp://0.0.0.0:{local_rx_port}?overrun_nonfatal=1{fifo_param}"
 
         # Ventana principal en el centro
         cmd = [
@@ -208,12 +229,10 @@ class MediaEngine:
             "-y", "720",
             "-left", "160",
             "-top", "60",
-            "-probesize", "32",
-            "-analyzeduration", "0",
             "-fflags", "nobuffer",
             "-flags", "low_delay",
             "-framedrop",
-            "-sync", "ext",
+            "-sync", "video",
             "-f", "mpegts",
             rx_url
         ]
@@ -223,10 +242,9 @@ class MediaEngine:
     def _spawn_pip(self):
         """Abre la ventana flotante en la esquina inferior izquierda (PiP)."""
         local_pip_port = self.config.get("local_preview_port", 4000)
-        pip_url = f"udp://127.0.0.1:{local_pip_port}?fifo_size=0&overrun_nonfatal=1"
+        pip_url = f"udp://127.0.0.1:{local_pip_port}?overrun_nonfatal=1"
 
         # Esquina inferior izquierda sobre la ventana principal
-        # left = 180, top = 590 (dentro de la ventana de 960x720)
         cmd = [
             "ffplay",
             "-window_title", "MeetLAN - Mi Camara (PiP)",
@@ -236,12 +254,10 @@ class MediaEngine:
             "-top", "590",
             "-alwaysontop",
             "-noborder",
-            "-probesize", "32",
-            "-analyzeduration", "0",
             "-fflags", "nobuffer",
             "-flags", "low_delay",
             "-framedrop",
-            "-sync", "ext",
+            "-sync", "video",
             "-f", "mpegts",
             pip_url
         ]

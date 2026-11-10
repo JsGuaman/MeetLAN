@@ -7,8 +7,9 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 import time
+import re
 
-from config import load_config, save_config, get_local_ip
+from config import load_config, save_config, get_local_ip, get_available_interfaces
 from signaling import SignalingManager
 from audio_alert import RingtoneManager
 from engine import MediaEngine
@@ -23,16 +24,18 @@ class MeetLANApp:
         # Geometría adaptativa y centrada en pantalla
         screen_w = self.root.winfo_screenwidth()
         screen_h = self.root.winfo_screenheight()
-        w = min(700, max(600, screen_w - 60))
+        w = min(740, max(640, screen_w - 60))
         h = min(600, max(480, screen_h - 80))
         x = max(10, (screen_w - w) // 2)
         y = max(10, (screen_h - h) // 2)
         self.root.geometry(f"{w}x{h}+{x}+{y}")
-        self.root.minsize(600, 460)
+        self.root.minsize(640, 480)
         self.root.configure(bg="#181825")
 
         self.config = load_config()
-        self.local_ip = get_local_ip()
+        self.available_ifaces = get_available_interfaces()
+        pref_iface = self.config.get("preferred_interface", None)
+        self.local_ip = get_local_ip(pref_iface)
         
         # Gestores de lógica
         self.ringtone = RingtoneManager()
@@ -77,18 +80,34 @@ class MeetLANApp:
         lbl_sub = tk.Label(title_box, text="Comunicaciones Multimedia • ITU-T H.264 & AAC", font=("Segoe UI", 8), bg="#1e1e2e", fg="#a6adc8")
         lbl_sub.pack(anchor="w")
 
-        # Info de Usuario Local
+        # Info de Usuario Local y Selector de Interfaz
         user_box = tk.Frame(header_frame, bg="#1e1e2e")
-        user_box.pack(side="right", padx=15, pady=12)
+        user_box.pack(side="right", padx=15, pady=6)
 
         self.lbl_user_name = tk.Label(user_box, text=f"👤 {self.config.get('user_name', 'Usuario')}", font=("Segoe UI", 11, "bold"), bg="#1e1e2e", fg="#cdd6f4")
         self.lbl_user_name.pack(anchor="e")
 
-        self.lbl_ip = tk.Label(user_box, text=f"IP Wi-Fi: {self.local_ip}", font=("Consolas", 9), bg="#1e1e2e", fg="#a6e3a1")
-        self.lbl_ip.pack(anchor="e")
+        # Selector de Interfaz de Red
+        iface_row = tk.Frame(user_box, bg="#1e1e2e")
+        iface_row.pack(anchor="e", pady=2)
 
-        self.lbl_dev_info = tk.Label(user_box, text=self._format_dev_info(), font=("Segoe UI", 8), bg="#1e1e2e", fg="#89dceb")
-        self.lbl_dev_info.pack(anchor="e")
+        tk.Label(iface_row, text="🌐 Red:", font=("Segoe UI", 9, "bold"), bg="#1e1e2e", fg="#89b4fa").pack(side="left", padx=(0, 4))
+
+        self.iface_options = [f"{i['name']} ({i['ip']})" for i in self.available_ifaces]
+        selected_opt = self.iface_options[0] if self.iface_options else f"Default ({self.local_ip})"
+        for opt, iface in zip(self.iface_options, self.available_ifaces):
+            if iface["ip"] == self.local_ip:
+                selected_opt = opt
+                break
+
+        self.var_selected_iface = tk.StringVar(value=selected_opt)
+        self.cb_iface = ttk.Combobox(iface_row, textvariable=self.var_selected_iface, values=self.iface_options, state="readonly", width=25)
+        self.cb_iface.pack(side="left")
+        self.cb_iface.bind("<<ComboboxSelected>>", self._on_iface_changed)
+
+        sig_port = self.config.get("signaling_port", 6010)
+        self.lbl_listen_info = tk.Label(user_box, text=f"🎧 Escuchando en: UDP 0.0.0.0:{sig_port} (Todas)", font=("Consolas", 8), bg="#1e1e2e", fg="#a6e3a1")
+        self.lbl_listen_info.pack(anchor="e")
 
         # 2. Barra de Herramientas (Escanear, Configuración, Llamada Directa)
         tool_frame = tk.Frame(self.root, bg="#181825")
@@ -222,13 +241,28 @@ class MeetLANApp:
         if len(a) > 22: a = a[:20] + ".."
         return f"📹 {v}  |  🎙️ {a}"
 
+    def _on_iface_changed(self, event=None):
+        selected_str = self.var_selected_iface.get()
+        m = re.search(r'\(([\d\.]+)\)', selected_str)
+        if m:
+            new_ip = m.group(1)
+            self.local_ip = new_ip
+            self.config["preferred_interface"] = selected_str
+            save_config(self.config)
+            print(f"[RED] Interfaz cambiada por el usuario: {selected_str} -> {new_ip}")
+            if hasattr(self, "signaling"):
+                self.signaling.update_local_ip(new_ip)
+            self._update_status_bar()
+
     def _on_config_saved(self, new_cfg):
         self.config = new_cfg
         self.lbl_user_name.config(text=f"👤 {self.config.get('user_name', 'Usuario')}")
-        self.lbl_dev_info.config(text=self._format_dev_info())
         self.engine.config = new_cfg
         self.signaling.config = new_cfg
         self.signaling.user_name = new_cfg.get("user_name", "Usuario")
+        if hasattr(self, "lbl_listen_info"):
+            sig_port = self.signaling.port
+            self.lbl_listen_info.config(text=f"🎧 Escuchando en: UDP 0.0.0.0:{sig_port} (Todas)")
         if hasattr(self, "entry_manual_tx_port"):
             self.entry_manual_tx_port.delete(0, tk.END)
             self.entry_manual_tx_port.insert(0, str(new_cfg.get("tx_port", 5000)))
@@ -392,7 +426,7 @@ class MeetLANApp:
             return
 
         caller_name = payload.get("caller_name", "Compañero")
-        caller_ip = payload.get("caller_ip", "")
+        caller_ip = payload.get("sender_socket_ip") or payload.get("caller_ip", "")
         caller_rx_port = int(payload.get("caller_rx_port", 5200))
         self.active_peer = {
             "name": caller_name,
@@ -471,8 +505,11 @@ class MeetLANApp:
         self._close_outgoing_dialog()
 
         callee_rx_port = int(payload.get("callee_rx_port", 5200))
+        sender_sock_ip = payload.get("sender_socket_ip")
         if self.active_peer:
             self.active_peer["remote_rx_port"] = callee_rx_port
+            if sender_sock_ip:
+                self.active_peer["ip"] = sender_sock_ip
 
         self._launch_media_session()
 

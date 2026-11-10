@@ -30,25 +30,27 @@ class SignalingManager:
         self.running = False
         self.sock = None
         self.listener_thread = None
+        self._my_ips = set()
 
     def start(self, local_ip):
         self.local_ip = local_ip
         self.running = True
+        self._refresh_my_ips()
         
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         
         try:
-            self.sock.bind(("", self.port))
-            print(f"[SEÑALIZACIÓN] Escuchando en UDP 0.0.0.0:{self.port}")
+            self.sock.bind(("0.0.0.0", self.port))
+            print(f"[SEÑALIZACIÓN] Escuchando en UDP 0.0.0.0:{self.port} (Todas las interfaces de red)")
         except Exception as e:
             print(f"[SEÑALIZACIÓN] Error al enlazar puerto {self.port}: {e}")
             bound = False
             for alt_port in [6010, 6020, 6030, 6050, 7000]:
                 try:
                     self.port = alt_port
-                    self.sock.bind(("", self.port))
+                    self.sock.bind(("0.0.0.0", self.port))
                     print(f"[SEÑALIZACIÓN] Enlazado exitosamente a puerto alternativo UDP 0.0.0.0:{self.port}")
                     bound = True
                     break
@@ -65,6 +67,19 @@ class SignalingManager:
         self.scan_peers()
         return True
 
+    def _refresh_my_ips(self):
+        try:
+            from config import get_available_interfaces
+            self._my_ips = set(i["ip"] for i in get_available_interfaces()) | {"127.0.0.1", "0.0.0.0", self.local_ip}
+        except Exception:
+            self._my_ips = {"127.0.0.1", "0.0.0.0", self.local_ip}
+
+    def update_local_ip(self, new_ip):
+        """Actualiza la IP local anunciada cuando el usuario cambia de interfaz en la UI."""
+        self.local_ip = new_ip
+        self._refresh_my_ips()
+        self.scan_peers()
+
     def stop(self):
         self.running = False
         if self.sock:
@@ -74,7 +89,7 @@ class SignalingManager:
                 pass
 
     def scan_peers(self):
-        """Envía saludo broadcast y sondeo rápido en subred /24 a todos los puertos conocidos."""
+        """Envía saludo broadcast y sondeo rápido a todas las subredes IPv4 conocidas."""
         if not self.sock or not self.local_ip:
             return
         
@@ -87,39 +102,65 @@ class SignalingManager:
         }).encode("utf-8")
 
         ports_to_broadcast = set([self.port, 6000, 6005, 6007, 6010, 6020, 6050])
-        # 1. Broadcast global y de subred
-        parts = self.local_ip.split(".")
-        subnet_bcast = f"{parts[0]}.{parts[1]}.{parts[2]}.255" if len(parts) == 4 else None
-
-        for p in ports_to_broadcast:
-            try:
-                self.sock.sendto(msg, ("255.255.255.255", p))
-                if subnet_bcast:
-                    self.sock.sendto(msg, (subnet_bcast, p))
-            except Exception:
-                pass
-
-        # 2. Sondeo en hilo de fondo a la subred /24 (por si el router Wi-Fi aísla broadcasts)
-        threading.Thread(target=self._subnet_ping_worker, args=(msg,), daemon=True).start()
-
-    def _subnet_ping_worker(self, msg):
-        parts = self.local_ip.split(".")
-        if len(parts) != 4:
-            return
-        base = f"{parts[0]}.{parts[1]}.{parts[2]}"
-        my_last = int(parts[3])
-        ports_to_probe = [self.port, 6000, 6007, 6010, 6050]
         
-        for host in range(1, 255):
-            if host == my_last:
-                continue
-            target_ip = f"{base}.{host}"
-            for p in ports_to_probe:
+        # Recolectar broadcasts de todas las interfaces disponibles para no perder ninguna subred
+        bcast_addresses = set(["255.255.255.255"])
+        subnets_to_probe = []
+
+        try:
+            from config import get_available_interfaces
+            for iface in get_available_interfaces():
+                ip = iface.get("ip", "")
+                parts = ip.split(".")
+                if len(parts) == 4:
+                    bcast_addresses.add(f"{parts[0]}.{parts[1]}.{parts[2]}.255")
+                    subnets_to_probe.append(ip)
+        except Exception:
+            pass
+
+        parts = self.local_ip.split(".")
+        if len(parts) == 4:
+            bcast_addresses.add(f"{parts[0]}.{parts[1]}.{parts[2]}.255")
+            if self.local_ip not in subnets_to_probe:
+                subnets_to_probe.insert(0, self.local_ip)
+
+        # 1. Broadcast global y en cada subred específica
+        for p in ports_to_broadcast:
+            for bcast_ip in bcast_addresses:
                 try:
-                    self.sock.sendto(msg, (target_ip, p))
+                    self.sock.sendto(msg, (bcast_ip, p))
                 except Exception:
                     pass
-            time.sleep(0.003)  # Rápido sin saturar Wi-Fi
+
+        # 2. Sondeo en hilo de fondo a las subredes activas
+        threading.Thread(target=self._subnet_ping_worker, args=(msg, subnets_to_probe), daemon=True).start()
+
+    def _subnet_ping_worker(self, msg, ip_list=None):
+        ports_to_probe = [self.port, 6000, 6007, 6010, 6050]
+        if not ip_list:
+            ip_list = [self.local_ip]
+
+        scanned_bases = set()
+        for ref_ip in ip_list:
+            parts = ref_ip.split(".")
+            if len(parts) != 4:
+                continue
+            base = f"{parts[0]}.{parts[1]}.{parts[2]}"
+            if base in scanned_bases:
+                continue
+            scanned_bases.add(base)
+            my_last = int(parts[3])
+            
+            for host in range(1, 255):
+                if host == my_last:
+                    continue
+                target_ip = f"{base}.{host}"
+                for p in ports_to_probe:
+                    try:
+                        self.sock.sendto(msg, (target_ip, p))
+                    except Exception:
+                        pass
+                time.sleep(0.002)
 
     def send_call_offer(self, target_ip):
         """Inicia una llamada hacia target_ip comunicando el puerto RX configurado."""
@@ -206,8 +247,8 @@ class SignalingManager:
                 if not data:
                     continue
                 sender_ip = addr[0]
-                if sender_ip == self.local_ip:
-                    # Ignorar paquetes propios
+                if sender_ip in self._my_ips:
+                    # Ignorar paquetes propios emitidos por cualquier interfaz local
                     continue
                 
                 # Intentar parsear JSON
@@ -285,6 +326,7 @@ class SignalingManager:
                     else:
                         self.status = "RINGING"
                         self._current_ringing_caller = sender_ip
+                        payload["sender_socket_ip"] = sender_ip
                         if self.on_incoming_call:
                             self.on_incoming_call(payload)
 
@@ -292,6 +334,7 @@ class SignalingManager:
                 elif p_type == "CALL_ACCEPT":
                     self.status = "IN_CALL"
                     self._current_ringing_caller = None
+                    payload["sender_socket_ip"] = sender_ip
                     if self.on_call_accepted:
                         self.on_call_accepted(payload)
 
