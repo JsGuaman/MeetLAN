@@ -8,6 +8,7 @@ from tkinter import ttk, messagebox
 import platform
 from config import save_config
 from devices import get_available_devices
+from firewall_helper import test_udp_port, apply_firewall_rules
 
 class ConfigDialog(tk.Toplevel):
     def __init__(self, parent, config, on_saved=None):
@@ -229,37 +230,98 @@ class ConfigDialog(tk.Toplevel):
 
     def _build_network_tab(self, parent):
         f = tk.Frame(parent, bg="#1e1e2e")
-        f.pack(fill="both", expand=True, padx=20, pady=20)
+        f.pack(fill="both", expand=True, padx=20, pady=15)
 
         # Puerto Señalización
-        tk.Label(f, text="Puerto de Señalización / Alertas:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=6)
-        self.var_sig_port = tk.IntVar(value=self.config.get("signaling_port", 6000))
-        entry_sig = tk.Entry(f, textvariable=self.var_sig_port, bg="#313244", fg="#cdd6f4", width=16)
-        entry_sig.grid(row=0, column=1, sticky="e", pady=6)
+        tk.Label(f, text="Puerto Señalización / Alertas:", bg="#1e1e2e", fg="#cdd6f4", font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w", pady=6)
+        self.var_sig_port = tk.IntVar(value=self.config.get("signaling_port", 6010))
+        entry_sig = tk.Entry(f, textvariable=self.var_sig_port, bg="#313244", fg="#cdd6f4", width=12, insertbackground="white")
+        entry_sig.grid(row=0, column=1, sticky="w", padx=6, pady=6)
+        btn_test_sig = tk.Button(
+            f, text="🔍 Probar", bg="#45475a", fg="#cdd6f4", font=("Segoe UI", 8), relief="flat", padx=8, pady=2,
+            command=lambda: self._test_port_action(self.var_sig_port.get(), "Señalización")
+        )
+        btn_test_sig.grid(row=0, column=2, sticky="w", padx=4, pady=6)
 
         # Puerto RX Local
-        tk.Label(f, text="Puerto de Recepción Local (RX):", bg="#1e1e2e", fg="#cdd6f4").grid(row=1, column=0, sticky="w", pady=6)
-        self.var_rx_port = tk.IntVar(value=self.config.get("rx_port", 5000))
-        entry_rx = tk.Entry(f, textvariable=self.var_rx_port, bg="#313244", fg="#cdd6f4", width=16)
-        entry_rx.grid(row=1, column=1, sticky="e", pady=6)
-
-        # Puerto TX Destino
-        tk.Label(f, text="Puerto de Transmisión Remoto (TX):", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=6)
-        self.var_tx_port = tk.IntVar(value=self.config.get("tx_port", 5001))
-        entry_tx = tk.Entry(f, textvariable=self.var_tx_port, bg="#313244", fg="#cdd6f4", width=16)
-        entry_tx.grid(row=2, column=1, sticky="e", pady=6)
+        tk.Label(f, text="Puerto de Recepción Local (RX):", bg="#1e1e2e", fg="#cdd6f4", font=("Segoe UI", 9, "bold")).grid(row=1, column=0, sticky="w", pady=6)
+        self.var_rx_port = tk.IntVar(value=self.config.get("rx_port", 5200))
+        entry_rx = tk.Entry(f, textvariable=self.var_rx_port, bg="#313244", fg="#cdd6f4", width=12, insertbackground="white")
+        entry_rx.grid(row=1, column=1, sticky="w", padx=6, pady=6)
+        btn_test_rx = tk.Button(
+            f, text="🔍 Probar", bg="#45475a", fg="#cdd6f4", font=("Segoe UI", 8), relief="flat", padx=8, pady=2,
+            command=lambda: self._test_port_action(self.var_rx_port.get(), "Recepción RX")
+        )
+        btn_test_rx.grid(row=1, column=2, sticky="w", padx=4, pady=6)
 
         # FIFO size
-        tk.Label(f, text="Búfer FIFO UDP (Bytes en RX):", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=6)
+        tk.Label(f, text="Búfer FIFO UDP (Bytes en RX):", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=6)
         self.var_fifo = tk.IntVar(value=self.config.get("fifo_size", 0))
-        cb_fifo = ttk.Combobox(f, textvariable=self.var_fifo, values=[0, 32768, 50000, 100000], width=15)
-        cb_fifo.grid(row=3, column=1, sticky="e", pady=6)
+        cb_fifo = ttk.Combobox(f, textvariable=self.var_fifo, values=[0, 32768, 50000, 100000], width=12)
+        cb_fifo.grid(row=2, column=1, sticky="w", padx=6, pady=6)
 
         # rtbufsize
-        tk.Label(f, text="Búfer de Cámara DirectShow (RAM):", bg="#1e1e2e", fg="#cdd6f4").grid(row=4, column=0, sticky="w", pady=6)
+        tk.Label(f, text="Búfer Cámara DirectShow (RAM):", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=6)
         self.var_rtbuf = tk.StringVar(value=self.config.get("rtbufsize", "250M"))
-        cb_rtbuf = ttk.Combobox(f, textvariable=self.var_rtbuf, values=["100M", "200M", "250M", "300M", "500M"], width=15)
-        cb_rtbuf.grid(row=4, column=1, sticky="e", pady=6)
+        cb_rtbuf = ttk.Combobox(f, textvariable=self.var_rtbuf, values=["100M", "200M", "250M", "300M", "500M"], width=12)
+        cb_rtbuf.grid(row=3, column=1, sticky="w", padx=6, pady=6)
+
+        # Puerto TX Destino (fallback/legacy)
+        self.var_tx_port = tk.IntVar(value=self.config.get("tx_port", 5200))
+
+        # Cuadro informativo de puertos dinámicos
+        tip_frame = tk.Frame(f, bg="#313244", padx=10, pady=8)
+        tip_frame.grid(row=4, column=0, columnspan=3, sticky="we", pady=(10, 10))
+        tip_lbl = (
+            "💡 Negociación Dinámica de Puertos P2P:\n"
+            "• Cada PC define su propio puerto RX libre (ej. 5200 si NI bloquea 5000/5001).\n"
+            "• MeetLAN transmite automáticamente al puerto que informe el compañero."
+        )
+        tk.Label(tip_frame, text=tip_lbl, bg="#313244", fg="#a6adc8", font=("Segoe UI", 8), justify="left").pack(anchor="w")
+
+        # Sección Firewall 1-Clic
+        fw_frame = tk.Frame(f, bg="#24273a", padx=12, pady=10, relief="groove", bd=1)
+        fw_frame.grid(row=5, column=0, columnspan=3, sticky="we", pady=(5, 5))
+        
+        os_name = "Windows Defender" if self.is_win else "UFW (Ubuntu)"
+        tk.Label(
+            fw_frame, text=f"🛡️ Configuración de Firewall ({os_name})",
+            bg="#24273a", fg="#fab387", font=("Segoe UI", 10, "bold")
+        ).pack(anchor="w", pady=(0, 4))
+        
+        fw_desc = (
+            "Abre automáticamente las reglas UDP en el firewall del sistema para los\n"
+            "puertos configurados arriba, sin necesidad de comandos manuales."
+        )
+        tk.Label(fw_frame, text=fw_desc, bg="#24273a", fg="#cdd6f4", font=("Segoe UI", 8), justify="left").pack(anchor="w", pady=(0, 8))
+
+        btn_apply_fw = tk.Button(
+            fw_frame, text=" 🛡️ Abrir Puertos en Firewall del Sistema (1 Clic) ",
+            bg="#fab387", fg="#11111b", font=("Segoe UI", 9, "bold"), relief="flat", padx=12, pady=6,
+            command=self._apply_firewall_action
+        )
+        btn_apply_fw.pack(anchor="w")
+
+    def _test_port_action(self, port_val, port_name):
+        ok, msg = test_udp_port(port_val)
+        if ok:
+            messagebox.showinfo("Verificación de Puerto", f"✅ {port_name} (UDP {port_val}):\n\n{msg}")
+        else:
+            messagebox.showwarning("Verificación de Puerto", f"❌ {port_name} (UDP {port_val}):\n\n{msg}")
+
+    def _apply_firewall_action(self):
+        try:
+            sig = int(self.var_sig_port.get())
+            rx = int(self.var_rx_port.get())
+        except Exception:
+            messagebox.showerror("Error", "Por favor ingresa puertos numéricos válidos.")
+            return
+
+        ok, msg = apply_firewall_rules([sig, rx], self.config)
+        if ok:
+            messagebox.showinfo("Firewall del Sistema", f"✅ ¡Operación Exitosa!\n\n{msg}")
+        else:
+            messagebox.showwarning("Firewall del Sistema", f"⚠️ Aviso de Firewall:\n\n{msg}")
 
     def _save_changes(self):
         # 1. Guardar Hardware Seleccionado

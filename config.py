@@ -50,10 +50,10 @@ def default_config():
         "audio_buffer_size_ms": 40,
         "aresample_filter": "aresample=async=1:first_pts=0",
         
-        # Parámetros de Red y Puertos
-        "signaling_port": 6000,
-        "rx_port": 5000,
-        "tx_port": 5001,
+        # Parámetros de Red y Puertos (Evita colisiones con National Instruments / Windows)
+        "signaling_port": 6010,
+        "rx_port": 5200,
+        "tx_port": 5200,
         "local_preview_port": 4000,
         "fifo_size": 0,
         "pkt_size": 1316,

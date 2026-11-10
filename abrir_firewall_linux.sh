@@ -16,10 +16,9 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 echo "Habilitando puertos UDP para video, audio y señalización..."
-ufw allow 5000/udp comment 'MeetLAN Video RX 5000'
-ufw allow 5001/udp comment 'MeetLAN Video RX 5001'
-ufw allow 5200:5201/udp comment 'MeetLAN Puertos Alternativos'
-ufw allow 6000/udp comment 'MeetLAN Senalizacion 6000'
+ufw allow 5000:5010/udp comment 'MeetLAN Video RX Rango 5000-5010'
+ufw allow 5200:5210/udp comment 'MeetLAN Video RX Rango 5200-5210'
+ufw allow 6000:6020/udp comment 'MeetLAN Senalizacion Rango 6000-6020'
 ufw allow 6050/udp comment 'MeetLAN Senalizacion 6050'
 
 echo ""

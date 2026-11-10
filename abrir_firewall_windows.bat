@@ -18,9 +18,9 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-echo [1/3] Habilitando puertos UDP (5000, 5001, 5200, 5201, 6000, 6050)...
+echo [1/3] Habilitando puertos UDP (5000, 5001, 5200, 5201, 6000, 6010, 6050)...
 netsh advfirewall firewall delete rule name="MeetLAN_UDP_Ports" >nul 2>&1
-netsh advfirewall firewall add rule name="MeetLAN_UDP_Ports" dir=in action=allow protocol=UDP localport=5000,5001,5200,5201,6000,6050 profile=any >nul
+netsh advfirewall firewall add rule name="MeetLAN_UDP_Ports" dir=in action=allow protocol=UDP localport=5000,5001,5200,5201,6000,6010,6050 profile=any >nul
 
 echo [2/3] Habilitando ejecutable ffplay.exe en el Firewall...
 for /f "delims=" %%i in ('where ffplay.exe 2^>nul') do set FFPLAY_PATH=%%i

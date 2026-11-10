@@ -44,13 +44,18 @@ class SignalingManager:
             print(f"[SEÑALIZACIÓN] Escuchando en UDP 0.0.0.0:{self.port}")
         except Exception as e:
             print(f"[SEÑALIZACIÓN] Error al enlazar puerto {self.port}: {e}")
-            # Intentar puerto alternativo 6050
-            try:
-                self.port = 6050
-                self.sock.bind(("", self.port))
-                print(f"[SEÑALIZACIÓN] Enlazado a puerto alternativo UDP 0.0.0.0:{self.port}")
-            except Exception as e2:
-                print(f"[SEÑALIZACIÓN] Fallo crítico al enlazar socket: {e2}")
+            bound = False
+            for alt_port in [6010, 6020, 6030, 6050, 7000]:
+                try:
+                    self.port = alt_port
+                    self.sock.bind(("", self.port))
+                    print(f"[SEÑALIZACIÓN] Enlazado exitosamente a puerto alternativo UDP 0.0.0.0:{self.port}")
+                    bound = True
+                    break
+                except Exception:
+                    continue
+            if not bound:
+                print(f"[SEÑALIZACIÓN] Fallo crítico al enlazar socket.")
                 return False
 
         self.listener_thread = threading.Thread(target=self._listen_loop, daemon=True)
@@ -111,35 +116,36 @@ class SignalingManager:
             time.sleep(0.005)  # 5 ms entre envíos para no saturar enlace Wi-Fi
 
     def send_call_offer(self, target_ip):
-        """Inicia una llamada hacia target_ip."""
+        """Inicia una llamada hacia target_ip comunicando el puerto RX configurado."""
+        rx_port = int(self.config.get("rx_port", 5200))
         msg = json.dumps({
             "type": "CALL_OFFER",
             "caller_name": self.user_name,
             "caller_ip": self.local_ip,
-            "caller_rx_port": self.config.get("rx_port", 5000),
-            "caller_tx_port": self.config.get("tx_port", 5001)
+            "caller_rx_port": rx_port
         }).encode("utf-8")
         
         try:
             self.sock.sendto(msg, (target_ip, self.port))
-            print(f"[LLAMADA] Oferta de llamada enviada a {target_ip}:{self.port}")
+            print(f"[LLAMADA] Oferta de llamada enviada a {target_ip}:{self.port} (Mi RX espera en UDP {rx_port})")
             return True
         except Exception as e:
             print(f"[LLAMADA] Error al enviar oferta: {e}")
             return False
 
     def send_call_accept(self, target_ip):
-        """Acepta la llamada entrante."""
+        """Acepta la llamada entrante comunicando el puerto RX configurado."""
         self.status = "IN_CALL"
+        rx_port = int(self.config.get("rx_port", 5200))
         msg = json.dumps({
             "type": "CALL_ACCEPT",
             "callee_name": self.user_name,
             "callee_ip": self.local_ip,
-            "callee_rx_port": self.config.get("rx_port", 5000),
-            "callee_tx_port": self.config.get("tx_port", 5001)
+            "callee_rx_port": rx_port
         }).encode("utf-8")
         try:
             self.sock.sendto(msg, (target_ip, self.port))
+            print(f"[LLAMADA] Aceptación de llamada enviada a {target_ip}:{self.port} (Mi RX espera en UDP {rx_port})")
         except Exception as e:
             print(f"[LLAMADA] Error al enviar aceptación: {e}")
 

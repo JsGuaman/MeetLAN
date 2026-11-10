@@ -96,7 +96,13 @@ class MeetLANApp:
             tool_frame, text=" ⚙️ Configuración ", bg="#45475a", fg="#cdd6f4",
             font=("Segoe UI", 9), relief="flat", padx=10, pady=5, command=self._open_config
         )
-        btn_config.pack(side="left")
+        btn_config.pack(side="left", padx=(0, 10))
+
+        btn_firewall = tk.Button(
+            tool_frame, text=" 🛡️ Firewall ", bg="#fab387", fg="#11111b",
+            font=("Segoe UI", 9, "bold"), relief="flat", padx=10, pady=5, command=self._open_firewall_clicked
+        )
+        btn_firewall.pack(side="left")
 
         # Entrada para marcar IP directa
         direct_frame = tk.Frame(tool_frame, bg="#181825")
@@ -158,6 +164,18 @@ class MeetLANApp:
 
     def _open_config(self):
         ConfigDialog(self.root, self.config, on_saved=self._on_config_saved)
+
+    def _open_firewall_clicked(self):
+        """Abre los puertos de MeetLAN en el firewall del sistema con 1 solo clic."""
+        from firewall_helper import apply_firewall_rules
+        sig_p = self.config.get("signaling_port", 6010)
+        rx_p = self.config.get("rx_port", 5200)
+        
+        ok, msg = apply_firewall_rules([sig_p, rx_p], self.config)
+        if ok:
+            messagebox.showinfo("Firewall del Sistema", f"🛡️ Configuración de Firewall:\n\n{msg}")
+        else:
+            messagebox.showwarning("Firewall del Sistema", f"⚠️ Aviso de Firewall:\n\n{msg}")
 
     def _format_dev_info(self):
         is_win = self.config.get("os_type") == "Windows"
@@ -289,7 +307,13 @@ class MeetLANApp:
     def _show_incoming_call_dialog(self, payload):
         caller_name = payload.get("caller_name", "Compañero")
         caller_ip = payload.get("caller_ip", "")
-        self.active_peer = {"name": caller_name, "ip": caller_ip, "payload": payload}
+        caller_rx_port = int(payload.get("caller_rx_port", 5200))
+        self.active_peer = {
+            "name": caller_name,
+            "ip": caller_ip,
+            "remote_rx_port": caller_rx_port,
+            "payload": payload
+        }
 
         # 1. Iniciar timbre audible repetido
         self.ringtone.start_ringing()
@@ -366,6 +390,10 @@ class MeetLANApp:
             self.outgoing_dialog.destroy()
             self.outgoing_dialog = None
 
+        callee_rx_port = int(payload.get("callee_rx_port", 5200))
+        if self.active_peer:
+            self.active_peer["remote_rx_port"] = callee_rx_port
+
         self._launch_media_session()
 
     def _launch_media_session(self):
@@ -375,18 +403,15 @@ class MeetLANApp:
 
         remote_ip = self.active_peer.get("ip")
         
-        # Asignación de puertos:
-        # Si esta PC tiene IP menor que la remota -> actúa como Computadora A (RX: 5000, TX a 5001)
-        # Si esta PC tiene IP mayor que la remota -> actúa como Computadora B (RX: 5001, TX a 5000)
-        # O usar puertos configurados
-        if self.local_ip < remote_ip:
-            local_rx = 5000
-            remote_tx = 5001
-        else:
-            local_rx = 5001
-            remote_tx = 5000
+        # Negociación P2P Dinámica de Puertos:
+        # 1. Escuchar localmente en el puerto RX definido en nuestra configuración
+        local_rx = int(self.config.get("rx_port", 5200))
+        # 2. Transmitir hacia el puerto RX que el compañero anunció en la señalización
+        remote_tx = int(self.active_peer.get("remote_rx_port", self.config.get("tx_port", 5200)))
 
-        print(f"[MEDIA] Iniciando llamada: RX local={local_rx}, TX remoto hacia {remote_ip}:{remote_tx}")
+        print(f"[MEDIA] Negociación de puertos P2P completada exitosamente:")
+        print(f"        -> RX Local: Escuchando en 0.0.0.0:{local_rx}")
+        print(f"        -> TX Remoto: Transmitiendo hacia {remote_ip}:{remote_tx}")
         self.engine.start_call(remote_ip, remote_tx, local_rx)
 
         # Mostrar barra flotante de control

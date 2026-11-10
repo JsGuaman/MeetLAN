@@ -53,9 +53,12 @@ MeetLAN/
 ├── signaling.py         # Protocolo de señalización y descubrimiento UDP en LAN
 ├── audio_alert.py       # Motor de timbrado y alerta audible (880 Hz)
 ├── engine.py            # Orquestador multimedia FFmpeg/FFplay con split y PiP
-├── ui_main.py           # Dashboard principal con lista de contactos y estado
-├── ui_config.py         # Panel gráfico de configuración de todos los parámetros
+├── firewall_helper.py   # Gestor de apertura de firewall (Windows Defender / UFW) y test de puertos
+├── ui_main.py           # Dashboard principal con lista de contactos, estado y botón Firewall
+├── ui_config.py         # Panel gráfico con selector dinámico de hardware y test de puertos
 ├── ui_call.py           # Barra flotante de control de llamada en curso
+├── abrir_firewall_windows.bat # Script standalone de apertura de firewall en Windows
+├── abrir_firewall_linux.sh   # Script standalone de apertura de firewall en Linux
 ├── run_meetlan.bat      # Lanzador para Windows
 ├── run_meetlan.sh       # Lanzador para Linux
 ├── install_ubuntu.sh    # Instalador de paquetes en Linux
@@ -67,16 +70,21 @@ MeetLAN/
 ## 4. Funcionamiento Paso a Paso
 
 ### 1. Menú Principal y Descubrimiento P2P
-* Al abrir MeetLAN en tu equipo y en el de tu compañero, la aplicación envía un saludo UDP inicial (`DISCOVERY_PING`) en el puerto 6000.
+* Al abrir MeetLAN en tu equipo y en el de tu compañero, la aplicación envía un saludo UDP inicial (`DISCOVERY_PING`) en el puerto configurado (ej. 6010 o 6000).
 * Ambos equipos se reconocen automáticamente y aparecen en la lista con su **Nombre, Dirección IP y Estado** (🟢 Disponible / 🔴 En llamada).
+* Dispone de un botón directo **"🛡️ Firewall"** en la barra superior para abrir las reglas del sistema con un solo clic.
 * También dispones de una casilla para marcar directamente una dirección IP específica.
 
-### 2. Panel de Configuración
+### 2. Panel de Configuración y Negociación Dinámica de Puertos
 Haciendo clic en **"⚙️ Configuración"**, puedes modificar en tiempo real:
 * **Video:** Bitrate (`300k`, `500k`, etc.), FPS (`24`, `30`), GoP, Preset (`ultrafast`), Tune (`zerolatency`), Espacio de color (`yuv420p`), Resolución.
 * **Audio:** Códec (`aac`), Tasa (`64k`), Búfer de hardware (`40 ms` para Bluetooth), filtro `aresample`.
-* **Red / Puertos:** Puerto de Señalización (6000/6050), Puerto RX Local (5000/5001), Puerto TX Remoto (5001/5000), Búfer FIFO (0).
-* **Hardware:** Selección de dispositivo de video (Cámara) y audio (Micrófono DirectShow en Windows o PulseAudio en Linux).
+* **Red / Puertos Sin Hardcodeo:**
+  * **Puerto RX Local:** Puedes configurar cualquier puerto UDP libre (ej. 5200 si servicios como National Instruments ocupan el 5000/5001 en Windows).
+  * **Botón "🔍 Probar":** Verifica en tiempo real si el puerto UDP está libre o si está retenido por otro proceso.
+  * **Negociación Automática:** Cada PC anuncia su propio puerto RX en la señalización (`caller_rx_port` y `callee_rx_port`). Cada extremo transmite exactamente al puerto que el compañero tiene abierto, sin conflicto alguno.
+  * **Botón "🛡️ Abrir Puertos en Firewall del Sistema (1 Clic)":** Solicita elevación UAC en Windows Defender o diálogo gráfico `pkexec` en Ubuntu (UFW).
+* **Hardware:** Detección automática en lista desplegable (Combobox) de cámaras y micrófonos DirectShow en Windows o V4L2/PulseAudio en Linux.
 
 ### 3. Flujo de Llamada (Aceptación / Rechazo Obligatorio)
 1. Presionas **"📞 Llamar"** al lado del contacto deseado.
