@@ -199,15 +199,20 @@ class MediaEngine:
             remote_url
         ])
 
-        # Salida 2: Flujo local loopback para PiP
+        # Salida 2: Flujo local loopback para PiP (Previsualización ultra-rápida sin delay)
         local_url = f"udp://127.0.0.1:{local_pip_port}?pkt_size=1316"
         cmd.extend([
             "-map", "[pip_v]",
-            "-vcodec", "mpeg4",
-            "-b:v", "200k",
-            "-r", "15",
+            "-vcodec", "libx264",
+            "-pix_fmt", pix_fmt,
+            "-b:v", "400k",
+            "-r", fps,
+            "-g", "12",
+            "-tune", "zerolatency",
+            "-preset", "ultrafast",
             "-f", "mpegts",
             "-muxdelay", "0",
+            "-muxpreload", "0",
             "-flush_packets", "1",
             local_url
         ])
@@ -229,6 +234,8 @@ class MediaEngine:
             "-y", "720",
             "-left", "160",
             "-top", "60",
+            "-probesize", "32768",
+            "-analyzeduration", "0",
             "-fflags", "nobuffer",
             "-flags", "low_delay",
             "-framedrop",
@@ -254,6 +261,8 @@ class MediaEngine:
             "-top", "590",
             "-alwaysontop",
             "-noborder",
+            "-probesize", "32768",
+            "-analyzeduration", "0",
             "-fflags", "nobuffer",
             "-flags", "low_delay",
             "-framedrop",
