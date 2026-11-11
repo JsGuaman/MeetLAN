@@ -172,8 +172,8 @@ def default_config():
         "devices": {
             "windows": {
                 "video": "FaceTime HD Camera (Built-in)",
-                "audio": "@device_cm_{33D9A762-90C8-11D0-BD43-00A0C911CE86}\\wave_{F0032157-24DD-4BEB-8357-70A9E7997E47}",
-                "audio_friendly": "Auriculares con micrófono (ENVTWBUDS Hands-Free AG Audio)"
+                "audio": "@device_cm_{33D9A762-90C8-11D0-BD43-00A0C911CE86}\\wave_{4A719366-ED8A-4363-908C-251F8B300B2E}",
+                "audio_friendly": "Micrófono Integrado (Cirrus Logic)"
             },
             "linux": {
                 "video": "/dev/video0",

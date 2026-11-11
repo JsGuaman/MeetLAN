@@ -147,18 +147,18 @@ def _apply_linux_firewall(ports):
                     if subprocess.run(check_cmd, capture_output=True).returncode != 0:
                         subprocess.run([iptables_bin, "-I", "INPUT", "-p", "udp", "--dport", str(p), "-j", "ACCEPT"], capture_output=True)
                 return True, (
-                    f"🛡️ {distro} (Modo Root detectado):\n\n"
+                    f"{distro} (Modo Root detectado):\n\n"
                     f"Reglas iptables añadidas con éxito para tráfico UDP en puertos: {ports_str}.\n"
                     f"¡Tus puertos están 100% abiertos y operativos!"
                 )
 
             # En Kali Linux por defecto, la política del kernel en INPUT es ACCEPT
             return True, (
-                f"ℹ️ Sistema detectado: {distro}\n\n"
+                f"[Info] Sistema detectado: {distro}\n\n"
                 f"En {distro}, el cortafuegos UFW no viene instalado por defecto y la "
                 f"política de red del kernel Linux para tráfico entrante es ACCEPT.\n\n"
-                f"✅ Tus puertos UDP ({ports_str}) están totalmente ABIERTOS por defecto a nivel de kernel.\n\n"
-                f"💡 ¡No necesitas configurar nada más, tu videollamada funcionará sin bloqueos!"
+                f"[OK] Tus puertos UDP ({ports_str}) están totalmente ABIERTOS por defecto a nivel de kernel.\n\n"
+                f"¡No necesitas configurar nada más, tu videollamada funcionará sin bloqueos!"
             )
 
         # CASO B: UFW sí está instalado. Ejecutamos las reglas directamente sobre el binario ufw.

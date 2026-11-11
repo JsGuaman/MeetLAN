@@ -66,7 +66,7 @@ class ConfigDialog(tk.Toplevel):
                                relief="flat", padx=15, pady=5, command=self.destroy)
         btn_cancel.pack(side="right", padx=5)
 
-        btn_save = tk.Button(btn_frame, text=" Guardar Cambios ", bg="#a6e3a1", fg="#11111b", font=("Segoe UI", 10, "bold"),
+        btn_save = tk.Button(btn_frame, text="Guardar Cambios", bg="#a6e3a1", fg="#11111b", font=("Segoe UI", 10, "bold"),
                              relief="flat", padx=15, pady=5, command=self._save_changes)
         btn_save.pack(side="right", padx=5)
 
@@ -81,10 +81,10 @@ class ConfigDialog(tk.Toplevel):
         tab_network = ttk.Frame(notebook)
 
         # Dispositivos de Hardware primero (como en Zoom)
-        notebook.add(tab_devices, text=" ⚙️ Dispositivos ")
-        notebook.add(tab_video, text=" 📹 Video ")
-        notebook.add(tab_audio, text=" 🎙️ Audio ")
-        notebook.add(tab_network, text=" 🌐 Red / Puertos ")
+        notebook.add(tab_devices, text="Dispositivos")
+        notebook.add(tab_video, text="Video")
+        notebook.add(tab_audio, text="Audio")
+        notebook.add(tab_network, text="Red / Puertos")
 
         # Construir contenido
         self._build_devices_tab(tab_devices)
@@ -104,7 +104,7 @@ class ConfigDialog(tk.Toplevel):
         lbl_desc.grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 15))
 
         # 1. Cámara de Video
-        tk.Label(f, text="📹 Cámara de Video:", bg="#1e1e2e", fg="#cdd6f4", font=("Segoe UI", 10, "bold")).grid(row=1, column=0, sticky="w", pady=8)
+        tk.Label(f, text="Cámara de Video:", bg="#1e1e2e", fg="#cdd6f4", font=("Segoe UI", 10, "bold")).grid(row=1, column=0, sticky="w", pady=8)
         
         self.video_names = [d["display_name"] for d in self.detected_video]
         self.var_video_choice = tk.StringVar()
@@ -122,7 +122,7 @@ class ConfigDialog(tk.Toplevel):
         self.cb_video.grid(row=1, column=1, sticky="w", padx=5, pady=8)
 
         # 2. Micrófono de Audio
-        tk.Label(f, text="🎙️ Micrófono de Audio:", bg="#1e1e2e", fg="#cdd6f4", font=("Segoe UI", 10, "bold")).grid(row=2, column=0, sticky="w", pady=8)
+        tk.Label(f, text="Micrófono de Audio:", bg="#1e1e2e", fg="#cdd6f4", font=("Segoe UI", 10, "bold")).grid(row=2, column=0, sticky="w", pady=8)
         
         self.audio_names = [d["display_name"] for d in self.detected_audio]
         self.var_audio_choice = tk.StringVar()
@@ -140,7 +140,7 @@ class ConfigDialog(tk.Toplevel):
 
         # Botón para refrescar dispositivos
         btn_refresh = tk.Button(
-            f, text=" 🔄 Actualizar Lista de Dispositivos ", bg="#313244", fg="#cdd6f4",
+            f, text="Actualizar Lista de Dispositivos", bg="#313244", fg="#cdd6f4",
             font=("Segoe UI", 9), relief="flat", padx=10, pady=4, command=self._refresh_hardware
         )
         btn_refresh.grid(row=3, column=0, columnspan=2, sticky="w", pady=15)
@@ -150,10 +150,10 @@ class ConfigDialog(tk.Toplevel):
         info_frame.grid(row=4, column=0, columnspan=2, sticky="we", pady=10)
         
         tip_text = (
-            "💡 Consejo de Sincronismo (P7 / Interciclo):\n"
-            "• Si usas auriculares Bluetooth (ej. ENVTWBUDS), el sistema ajusta el búfer\n"
+            "Consejo de Sincronismo (P7 / Interciclo):\n"
+            "- Si usas auriculares Bluetooth (ej. ENVTWBUDS), el sistema ajusta el búfer\n"
             "  a 40 ms para eliminar el retardo de 500 ms de Windows.\n"
-            "• Si desconectas los auriculares, puedes seleccionar aquí tu micrófono integrado."
+            "- Si desconectas los auriculares, puedes seleccionar aquí tu micrófono integrado."
         )
         tk.Label(info_frame, text=tip_text, bg="#313244", fg="#a6adc8", font=("Segoe UI", 8), justify="left").pack(anchor="w")
 
@@ -310,7 +310,7 @@ class ConfigDialog(tk.Toplevel):
         var_port.trace_add("write", on_entry_change)
 
         btn_test = tk.Button(
-            frame, text="🔍 Probar", bg="#45475a", fg="#cdd6f4", font=("Segoe UI", 8), relief="flat", padx=8, pady=2,
+            frame, text=" Probar", bg="#45475a", fg="#cdd6f4", font=("Segoe UI", 8), relief="flat", padx=8, pady=2,
             command=lambda: self._test_port_action(var_port.get(), test_name)
         )
         btn_test.pack(side="left", padx=6)
@@ -357,7 +357,7 @@ class ConfigDialog(tk.Toplevel):
         # 1. Puerto RX Local con Slider Discreto
         self.var_rx_port = tk.IntVar(value=self.config.get("rx_port", 5200))
         self._create_discrete_slider_row(
-            f, "📥 Puerto RX Local (Recepción):", "#a6e3a1", self.var_rx_port,
+            f, " Puerto RX Local (Recepción):", "#a6e3a1", self.var_rx_port,
             [5000, 5002, 5004, 5006, 5010, 5200, 5202, 5204, 5210, 5500, 6002, 7000],
             "Recepción RX", "(Donde esta máquina escucha)"
         )
@@ -365,7 +365,7 @@ class ConfigDialog(tk.Toplevel):
         # 2. Puerto TX Remoto con Slider Discreto
         self.var_tx_port = tk.IntVar(value=self.config.get("tx_port", 5000))
         self._create_discrete_slider_row(
-            f, "📤 Puerto TX Remoto (Transmisión Manual / Fallback):", "#89b4fa", self.var_tx_port,
+            f, " Puerto TX Remoto (Transmisión Manual / Fallback):", "#89b4fa", self.var_tx_port,
             [5000, 5002, 5004, 5006, 5010, 5200, 5202, 5204, 5210, 5500, 6002, 7000],
             "Transmisión TX", "(Destino al marcar por IP Manual)"
         )
@@ -373,7 +373,7 @@ class ConfigDialog(tk.Toplevel):
         # 3. Puerto de Señalización con Slider Discreto
         self.var_sig_port = tk.IntVar(value=self.config.get("signaling_port", 6010))
         self._create_discrete_slider_row(
-            f, "🔔 Puerto Señalización / Descubrimiento LAN:", "#f9e2af", self.var_sig_port,
+            f, " Puerto Señalización / Descubrimiento LAN:", "#f9e2af", self.var_sig_port,
             [6000, 6005, 6010, 6015, 6020, 6025, 6030, 6050],
             "Señalización", "(Descubrimiento y timbrado LAN)"
         )
@@ -396,11 +396,11 @@ class ConfigDialog(tk.Toplevel):
         tip_frame = tk.Frame(f, bg="#313244", padx=10, pady=6)
         tip_frame.pack(fill="x", pady=(4, 4))
         tip_lbl = (
-            "💡 ¿Cómo se selecciona el puerto de transmisión (TX)?\n"
-            "• Al llamar a un contacto de la lista, la señalización P2P negocia el puerto automáticamente:\n"
+            " ¿Cómo se selecciona el puerto de transmisión (TX)?\n"
+            "- Al llamar a un contacto de la lista, la señalización P2P negocia el puerto automáticamente:\n"
             "  tu TX transmitirá al puerto exacto en el que tu compañero configuró su RX.\n"
-            "• Si marcas por 'IP Manual', se transmitirá hacia el 'Puerto TX' configurado arriba.\n"
-            "• El slider salta limpiamente entre las opciones de puertos válidos recomendados."
+            "- Si marcas por 'IP Manual', se transmitirá hacia el 'Puerto TX' configurado arriba.\n"
+            "- El slider salta limpiamente entre las opciones de puertos válidos recomendados."
         )
         tk.Label(tip_frame, text=tip_lbl, bg="#313244", fg="#a6adc8", font=("Segoe UI", 8), justify="left").pack(anchor="w")
 
@@ -410,7 +410,7 @@ class ConfigDialog(tk.Toplevel):
         
         os_name = "Windows Defender" if self.is_win else "UFW / iptables (Linux / Kali)"
         tk.Label(
-            fw_frame, text=f"🛡️ Configuración de Firewall ({os_name})",
+            fw_frame, text=f" Configuración de Firewall ({os_name})",
             bg="#24273a", fg="#fab387", font=("Segoe UI", 10, "bold")
         ).pack(anchor="w", pady=(0, 3))
         
@@ -421,7 +421,7 @@ class ConfigDialog(tk.Toplevel):
         tk.Label(fw_frame, text=fw_desc, bg="#24273a", fg="#cdd6f4", font=("Segoe UI", 8), justify="left").pack(anchor="w", pady=(0, 5))
 
         btn_apply_fw = tk.Button(
-            fw_frame, text=" 🛡️ Abrir Puertos Seleccionados en Firewall (1 Clic) ",
+            fw_frame, text="  Abrir Puertos Seleccionados en Firewall (1 Clic) ",
             bg="#fab387", fg="#11111b", font=("Segoe UI", 9, "bold"), relief="flat", padx=12, pady=4,
             command=self._apply_firewall_action
         )
@@ -430,9 +430,9 @@ class ConfigDialog(tk.Toplevel):
     def _test_port_action(self, port_val, port_name):
         ok, msg = test_udp_port(port_val)
         if ok:
-            messagebox.showinfo("Verificación de Puerto", f"✅ {port_name} (UDP {port_val}):\n\n{msg}")
+            messagebox.showinfo("Verificación de Puerto", f"[OK] {port_name} (UDP {port_val}):\n\n{msg}")
         else:
-            messagebox.showwarning("Verificación de Puerto", f"❌ {port_name} (UDP {port_val}):\n\n{msg}")
+            messagebox.showwarning("Verificación de Puerto", f"[X] {port_name} (UDP {port_val}):\n\n{msg}")
 
     def _apply_firewall_action(self):
         try:
@@ -444,9 +444,9 @@ class ConfigDialog(tk.Toplevel):
 
         ok, msg = apply_firewall_rules([sig, rx], self.config)
         if ok:
-            messagebox.showinfo("Firewall del Sistema", f"✅ ¡Operación Exitosa!\n\n{msg}")
+            messagebox.showinfo("Firewall del Sistema", f"[OK] ¡Operación Exitosa!\n\n{msg}")
         else:
-            messagebox.showwarning("Firewall del Sistema", f"⚠️ Aviso de Firewall:\n\n{msg}")
+            messagebox.showwarning("Firewall del Sistema", f"[Aviso] Aviso de Firewall:\n\n{msg}")
 
     def _save_changes(self):
         # 1. Guardar Hardware Seleccionado

@@ -18,6 +18,9 @@ class MediaEngine:
         self.rx_process = None
         self.pip_process = None
         self.is_running = False
+        self.tx_log = None
+        self.rx_log = None
+        self.pip_log = None
 
     def start_call(self, remote_ip, remote_port, local_rx_port):
         """
@@ -40,6 +43,17 @@ class MediaEngine:
         time.sleep(0.15)
         self.pip_process = self._spawn_pip()
 
+        # 4. Verificación de estabilidad inicial
+        time.sleep(0.3)
+        if self.tx_process and self.tx_process.poll() is not None:
+            print(f"[ENGINE ERROR] FFmpeg TX se detuvo prematuramente con código {self.tx_process.returncode}!")
+            try:
+                with open("ffmpeg_tx.log", "r", encoding="utf-8", errors="replace") as lf:
+                    lines = lf.readlines()[-15:]
+                    print("".join(lines))
+            except Exception:
+                pass
+
     def stop_call(self):
         """Detiene de forma limpia e instantánea todos los procesos de video/audio."""
         self.is_running = False
@@ -55,6 +69,17 @@ class MediaEngine:
                     p.kill()
                 except Exception:
                     pass
+
+        # Cerrar archivos de registro
+        for lf in [self.tx_log, self.rx_log, self.pip_log]:
+            if lf and lf != subprocess.DEVNULL:
+                try:
+                    lf.close()
+                except Exception:
+                    pass
+        self.tx_log = None
+        self.rx_log = None
+        self.pip_log = None
 
         # Asegurar liberación inmediata de sockets y hardware de ffplay
         try:
@@ -104,12 +129,28 @@ class MediaEngine:
                     v_dev = det_v[0]["ffmpeg_id"]
                     print(f"[ENGINE TX] Cámara previa no encontrada, usando disponible: {det_v[0]['display_name']}")
                     
-                # Validar audio (fallback si el Bluetooth fue desconectado)
-                if not any(d["ffmpeg_id"] == a_dev or d["display_name"] == a_dev or d.get("alt_id") == a_dev for d in det_a) and det_a:
-                    a_dev = det_a[0]["ffmpeg_id"]
-                    print(f"[ENGINE TX] Micrófono previo desconectado, usando disponible: {det_a[0]['display_name']}")
+                # Si el micrófono configurado es Bluetooth o no está disponible, verificar si responde
+                if a_dev:
+                    test_p = subprocess.run(
+                        ["ffmpeg", "-hide_banner", "-loglevel", "quiet", "-f", "dshow", "-t", "0.05", "-i", f"audio={a_dev}", "-f", "null", "-"],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.8
+                    )
+                    if test_p.returncode != 0:
+                        raise Exception("Micrófono seleccionado no responde (Bluetooth desconectado)")
             except Exception as e:
-                print(f"[ENGINE TX] Error al autovalidar hardware: {e}")
+                print(f"[ENGINE TX] Aviso de hardware de audio: {e}. Activando micrófono integrado...")
+                a_dev = ""
+                try:
+                    for d in det_a:
+                        d_low = d["display_name"].lower()
+                        if "cirrus" in d_low or "integrado" in d_low or "realtek" in d_low or "interno" in d_low:
+                            a_dev = d["ffmpeg_id"]
+                            print(f"[ENGINE TX] Usando micrófono integrado: {d['display_name']}")
+                            break
+                    if not a_dev and det_a:
+                        a_dev = det_a[0]["ffmpeg_id"]
+                except Exception:
+                    a_dev = ""
 
             if not v_dev:
                 v_dev = "FaceTime HD Camera (Built-in)"
@@ -232,7 +273,11 @@ class MediaEngine:
         ])
 
         print(f"[ENGINE TX] Ejecutando: {' '.join(cmd)}")
-        return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            self.tx_log = open("ffmpeg_tx.log", "w", encoding="utf-8", errors="replace")
+        except Exception:
+            self.tx_log = subprocess.DEVNULL
+        return subprocess.Popen(cmd, stdout=self.tx_log, stderr=subprocess.STDOUT)
 
     def _spawn_rx(self, local_rx_port):
         """Abre la ventana principal FFplay para el flujo remoto de fondo."""
@@ -258,7 +303,11 @@ class MediaEngine:
             rx_url
         ]
         print(f"[ENGINE RX] Ejecutando: {' '.join(cmd)}")
-        return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            self.rx_log = open("ffplay_rx.log", "w", encoding="utf-8", errors="replace")
+        except Exception:
+            self.rx_log = subprocess.DEVNULL
+        return subprocess.Popen(cmd, stdout=self.rx_log, stderr=subprocess.STDOUT)
 
     def _spawn_pip(self):
         """Abre la ventana flotante en la esquina inferior izquierda (PiP)."""
@@ -285,4 +334,8 @@ class MediaEngine:
             pip_url
         ]
         print(f"[ENGINE PiP] Ejecutando: {' '.join(cmd)}")
-        return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            self.pip_log = open("ffplay_pip.log", "w", encoding="utf-8", errors="replace")
+        except Exception:
+            self.pip_log = subprocess.DEVNULL
+        return subprocess.Popen(cmd, stdout=self.pip_log, stderr=subprocess.STDOUT)

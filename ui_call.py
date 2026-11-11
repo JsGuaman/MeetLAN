@@ -36,7 +36,7 @@ class CallControlBar(tk.Toplevel):
         # Información del contacto y tiempo
         self.lbl_info = tk.Label(
             f,
-            text=f"🟢 En llamada con: {peer_info.get('name', 'Compañero')} ({peer_info.get('ip', '')})",
+            text=f"En llamada con: {peer_info.get('name', 'Compañero')} ({peer_info.get('ip', '')})",
             bg="#11111b",
             fg="#a6e3a1",
             font=("Segoe UI", 11, "bold")
@@ -55,7 +55,7 @@ class CallControlBar(tk.Toplevel):
         # Botón de Colgar
         self.btn_hangup = tk.Button(
             f,
-            text="  🔴 Colgar Videollamada  ",
+            text="Colgar Videollamada",
             bg="#f38ba8",
             fg="#11111b",
             font=("Segoe UI", 11, "bold"),

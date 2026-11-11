@@ -74,24 +74,24 @@ class MeetLANApp:
         title_box = tk.Frame(header_frame, bg="#1e1e2e")
         title_box.pack(side="left", padx=15, pady=12)
 
-        lbl_logo = tk.Label(title_box, text="📹 MeetLAN", font=("Segoe UI", 16, "bold"), bg="#1e1e2e", fg="#89b4fa")
+        lbl_logo = tk.Label(title_box, text=" MeetLAN", font=("Segoe UI", 16, "bold"), bg="#1e1e2e", fg="#89b4fa")
         lbl_logo.pack(anchor="w")
 
-        lbl_sub = tk.Label(title_box, text="Comunicaciones Multimedia • ITU-T H.264 & AAC", font=("Segoe UI", 8), bg="#1e1e2e", fg="#a6adc8")
+        lbl_sub = tk.Label(title_box, text="Comunicaciones Multimedia - ITU-T H.264 & AAC", font=("Segoe UI", 8), bg="#1e1e2e", fg="#a6adc8")
         lbl_sub.pack(anchor="w")
 
         # Info de Usuario Local y Selector de Interfaz
         user_box = tk.Frame(header_frame, bg="#1e1e2e")
         user_box.pack(side="right", padx=15, pady=6)
 
-        self.lbl_user_name = tk.Label(user_box, text=f"👤 {self.config.get('user_name', 'Usuario')}", font=("Segoe UI", 11, "bold"), bg="#1e1e2e", fg="#cdd6f4")
+        self.lbl_user_name = tk.Label(user_box, text=f"Usuario: {self.config.get('user_name', 'Usuario')}", font=("Segoe UI", 11, "bold"), bg="#1e1e2e", fg="#cdd6f4")
         self.lbl_user_name.pack(anchor="e")
 
         # Selector de Interfaz de Red
         iface_row = tk.Frame(user_box, bg="#1e1e2e")
         iface_row.pack(anchor="e", pady=2)
 
-        tk.Label(iface_row, text="🌐 Red:", font=("Segoe UI", 9, "bold"), bg="#1e1e2e", fg="#89b4fa").pack(side="left", padx=(0, 4))
+        tk.Label(iface_row, text="Red:", font=("Segoe UI", 9, "bold"), bg="#1e1e2e", fg="#89b4fa").pack(side="left", padx=(0, 4))
 
         self.iface_options = [f"{i['name']} ({i['ip']})" for i in self.available_ifaces]
         selected_opt = self.iface_options[0] if self.iface_options else f"Default ({self.local_ip})"
@@ -106,7 +106,7 @@ class MeetLANApp:
         self.cb_iface.bind("<<ComboboxSelected>>", self._on_iface_changed)
 
         sig_port = self.config.get("signaling_port", 6010)
-        self.lbl_listen_info = tk.Label(user_box, text=f"🎧 Escuchando en: UDP 0.0.0.0:{sig_port} (Todas)", font=("Consolas", 8), bg="#1e1e2e", fg="#a6e3a1")
+        self.lbl_listen_info = tk.Label(user_box, text=f"Escuchando en: UDP 0.0.0.0:{sig_port} (Todas)", font=("Consolas", 8), bg="#1e1e2e", fg="#a6e3a1")
         self.lbl_listen_info.pack(anchor="e")
 
         # 2. Barra de Herramientas (Escanear, Configuración, Llamada Directa)
@@ -114,19 +114,19 @@ class MeetLANApp:
         tool_frame.pack(fill="x", padx=15, pady=5)
 
         btn_scan = tk.Button(
-            tool_frame, text=" 🔄 Escanear Red LAN ", bg="#89b4fa", fg="#11111b",
+            tool_frame, text="Escanear Red LAN", bg="#89b4fa", fg="#11111b",
             font=("Segoe UI", 9, "bold"), relief="flat", padx=10, pady=5, command=self._scan_clicked
         )
         btn_scan.pack(side="left", padx=(0, 10))
 
         btn_config = tk.Button(
-            tool_frame, text=" ⚙️ Configuración ", bg="#45475a", fg="#cdd6f4",
+            tool_frame, text="Configuración", bg="#45475a", fg="#cdd6f4",
             font=("Segoe UI", 9), relief="flat", padx=10, pady=5, command=self._open_config
         )
         btn_config.pack(side="left", padx=(0, 10))
 
         btn_firewall = tk.Button(
-            tool_frame, text=" 🛡️ Firewall ", bg="#fab387", fg="#11111b",
+            tool_frame, text="Firewall", bg="#fab387", fg="#11111b",
             font=("Segoe UI", 9, "bold"), relief="flat", padx=10, pady=5, command=self._open_firewall_clicked
         )
         btn_firewall.pack(side="left")
@@ -146,7 +146,7 @@ class MeetLANApp:
         self.entry_manual_tx_port.insert(0, str(self.config.get("tx_port", 5000)))
 
         btn_call_manual = tk.Button(
-            direct_frame, text=" 📞 Llamar ", bg="#a6e3a1", fg="#11111b",
+            direct_frame, text="Llamar", bg="#a6e3a1", fg="#11111b",
             font=("Segoe UI", 9, "bold"), relief="flat", padx=8, pady=3, command=self._call_manual_clicked
         )
         btn_call_manual.pack(side="left", padx=4)
@@ -176,7 +176,7 @@ class MeetLANApp:
 
         # 4. Barra de Estado Inferior
         self.status_bar = tk.Label(
-            self.root, text="🟢 Sistema listo • Estado: Disponible",
+            self.root, text="Sistema listo - Estado: Disponible",
             bg="#11111b", fg="#a6e3a1", font=("Segoe UI", 9), anchor="w", padx=15, pady=4
         )
         self.status_bar.pack(fill="x", side="bottom")
@@ -184,13 +184,13 @@ class MeetLANApp:
         # Mensaje placeholder en la lista
         self.lbl_no_peers = tk.Label(
             self.scroll_frame,
-            text="\n\n🔍 Buscando computadoras en la red con MeetLAN...\nPresiona 'Escanear Red LAN' si tu compañero acaba de abrir la app.",
+            text="\n\nBuscando computadoras en la red con MeetLAN...\nPresiona 'Escanear Red LAN' si tu compañero acaba de abrir la app.",
             bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 10)
         )
         self.lbl_no_peers.pack(pady=30)
 
     def _scan_clicked(self):
-        self.status_bar.config(text="🔄 Buscando dispositivos en la red LAN...", fg="#89b4fa")
+        self.status_bar.config(text="Buscando dispositivos en la red LAN...", fg="#89b4fa")
         self.signaling.scan_peers()
         
         # Sondeo directo a la IP manual indicada por si el router Wi-Fi aísla broadcasts
@@ -223,9 +223,9 @@ class MeetLANApp:
         
         ok, msg = apply_firewall_rules([sig_p, rx_p], self.config)
         if ok:
-            messagebox.showinfo("Firewall del Sistema", f"🛡️ Configuración de Firewall:\n\n{msg}")
+            messagebox.showinfo("Firewall del Sistema", f" Configuración de Firewall:\n\n{msg}")
         else:
-            messagebox.showwarning("Firewall del Sistema", f"⚠️ Aviso de Firewall:\n\n{msg}")
+            messagebox.showwarning("Firewall del Sistema", f"[Aviso] Aviso de Firewall:\n\n{msg}")
 
     def _format_dev_info(self):
         is_win = self.config.get("os_type") == "Windows"
@@ -239,7 +239,7 @@ class MeetLANApp:
         # Recortar nombres largos para que no desborden
         if len(v) > 22: v = v[:20] + ".."
         if len(a) > 22: a = a[:20] + ".."
-        return f"📹 {v}  |  🎙️ {a}"
+        return f"{v} | {a}"
 
     def _on_iface_changed(self, event=None):
         selected_str = self.var_selected_iface.get()
@@ -256,13 +256,13 @@ class MeetLANApp:
 
     def _on_config_saved(self, new_cfg):
         self.config = new_cfg
-        self.lbl_user_name.config(text=f"👤 {self.config.get('user_name', 'Usuario')}")
+        self.lbl_user_name.config(text=f"Usuario: {self.config.get('user_name', 'Usuario')}")
         self.engine.config = new_cfg
         self.signaling.config = new_cfg
         self.signaling.user_name = new_cfg.get("user_name", "Usuario")
         if hasattr(self, "lbl_listen_info"):
             sig_port = self.signaling.port
-            self.lbl_listen_info.config(text=f"🎧 Escuchando en: UDP 0.0.0.0:{sig_port} (Todas)")
+            self.lbl_listen_info.config(text=f"Escuchando en: UDP 0.0.0.0:{sig_port} (Todas)")
         if hasattr(self, "entry_manual_tx_port"):
             self.entry_manual_tx_port.delete(0, tk.END)
             self.entry_manual_tx_port.insert(0, str(new_cfg.get("tx_port", 5000)))
@@ -270,9 +270,9 @@ class MeetLANApp:
     def _update_status_bar(self):
         st = self.signaling.status
         if st == "AVAILABLE":
-            self.status_bar.config(text=f"🟢 Sistema listo • Estado: Disponible (Puerto {self.signaling.port})", fg="#a6e3a1")
+            self.status_bar.config(text=f"Sistema listo - Estado: Disponible (Puerto {self.signaling.port})", fg="#a6e3a1")
         else:
-            self.status_bar.config(text=f"🔴 En llamada con {self.active_peer.get('name', '')} ({self.active_peer.get('ip', '')})", fg="#f38ba8")
+            self.status_bar.config(text=f"En llamada con: {self.active_peer.get('name', '')} ({self.active_peer.get('ip', '')})", fg="#f38ba8")
 
     def _on_peers_updated(self, peers):
         self.root.after(0, self._render_peer_list, peers)
@@ -298,17 +298,17 @@ class MeetLANApp:
             info_sub = tk.Frame(card, bg="#313244")
             info_sub.pack(side="left", padx=12, pady=10)
 
-            name_lbl = tk.Label(info_sub, text=f"💻 {p.get('name', 'Compañero')}", font=("Segoe UI", 11, "bold"), bg="#313244", fg="#cdd6f4")
+            name_lbl = tk.Label(info_sub, text=f"{p.get('name', 'Compañero')}", font=("Segoe UI", 11, "bold"), bg="#313244", fg="#cdd6f4")
             name_lbl.pack(anchor="w")
 
-            status_txt = "🟢 Disponible" if p.get("status") == "AVAILABLE" else "🔴 En llamada"
-            ip_lbl = tk.Label(info_sub, text=f"IP: {ip}  •  {status_txt}", font=("Consolas", 9), bg="#313244", fg="#a6adc8")
+            status_txt = "Disponible" if p.get("status") == "AVAILABLE" else "En llamada"
+            ip_lbl = tk.Label(info_sub, text=f"IP: {ip}  -  {status_txt}", font=("Consolas", 9), bg="#313244", fg="#a6adc8")
             ip_lbl.pack(anchor="w")
 
             # Botón de Llamar
             btn_state = "normal" if p.get("status") == "AVAILABLE" else "disabled"
             btn_call = tk.Button(
-                card, text=" 📞 Llamar ", bg="#a6e3a1", fg="#11111b",
+                card, text="Llamar", bg="#a6e3a1", fg="#11111b",
                 font=("Segoe UI", 10, "bold"), relief="flat", padx=12, pady=5,
                 state=btn_state,
                 command=lambda target_ip=ip, peer_data=p: self._start_call_to(target_ip, peer_data)
@@ -388,7 +388,7 @@ class MeetLANApp:
 
         lbl_calling = tk.Label(
             self.outgoing_dialog,
-            text=f"📞 Llamando a {peer_data.get('name', 'Compañero')}...",
+            text=f"Llamando a {peer_data.get('name', 'Compañero')}...",
             font=("Segoe UI", 12, "bold"), bg="#1e1e2e", fg="#89b4fa"
         )
         lbl_calling.pack(pady=(25, 10))
@@ -448,7 +448,7 @@ class MeetLANApp:
         self.incoming_dialog.protocol("WM_DELETE_WINDOW", self._reject_incoming_call)
 
         lbl_title = tk.Label(
-            self.incoming_dialog, text="🔔 ¡LLAMADA ENTRANTE!",
+            self.incoming_dialog, text="LLAMADA ENTRANTE",
             font=("Segoe UI", 14, "bold"), bg="#1e1e2e", fg="#f9e2af"
         )
         lbl_title.pack(pady=(20, 8))
@@ -464,14 +464,14 @@ class MeetLANApp:
         btn_box.pack(pady=18)
 
         btn_accept = tk.Button(
-            btn_box, text=" ✔️ Aceptar ", bg="#a6e3a1", fg="#11111b",
+            btn_box, text="Aceptar", bg="#a6e3a1", fg="#11111b",
             font=("Segoe UI", 11, "bold"), relief="flat", padx=15, pady=6,
             command=self._accept_incoming_call
         )
         btn_accept.pack(side="left", padx=10)
 
         btn_reject = tk.Button(
-            btn_box, text=" ✖️ Rechazar ", bg="#f38ba8", fg="#11111b",
+            btn_box, text="Rechazar", bg="#f38ba8", fg="#11111b",
             font=("Segoe UI", 11, "bold"), relief="flat", padx=15, pady=6,
             command=self._reject_incoming_call
         )
@@ -592,7 +592,7 @@ class MeetLANApp:
         self._update_status_bar()
         
         # Notificación visual fluida en la barra de estado (sin messagebox bloqueante)
-        self.status_bar.config(text="● LLAMADA FINALIZADA — El compañero ha colgado", fg="#f38ba8")
+        self.status_bar.config(text="LLAMADA FINALIZADA - El compañero ha colgado", fg="#f38ba8")
         self.root.after(3000, self._update_status_bar)
 
     def _on_call_busy_received(self, payload):
