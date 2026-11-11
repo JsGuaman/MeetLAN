@@ -75,6 +75,15 @@ class MediaEngine:
         preset = self.config.get("preset", "ultrafast")
         tune = self.config.get("tune", "zerolatency")
         pix_fmt = self.config.get("pix_fmt", "yuv420p")
+        # Sanitizar formato de píxel: libx264 requiere yuv420p / nv12 / yuvj420p (yuyv422 rompe el encoder H.264)
+        if pix_fmt not in ["yuv420p", "nv12", "yuvj420p"]:
+            pix_fmt = "yuv420p"
+
+        w = int(self.config.get("width", 640))
+        h = int(self.config.get("height", 480))
+        # Garantizar dimensiones pares estrictas (evita error 'height not divisible by 2' en H.264)
+        w = w if w % 2 == 0 else w + 1
+        h = h if h % 2 == 0 else h + 1
         audio_b = self.config.get("audio_bitrate", "64k")
         local_pip_port = self.config.get("local_preview_port", 4000)
         
@@ -170,15 +179,20 @@ class MediaEngine:
                     "-i", raw_a
                 ])
 
-        # Filtro Split: 1 flujo para enviar a la red, 1 flujo miniatura local
-        filter_str = "[0:v]split=2[tx_v][local_v]; [local_v]scale=220:165[pip_v]"
+        # Filtro Split: Escala a dimensiones pares y divide en flujo remoto y PiP local (220x164)
+        filter_str = f"[0:v]scale={w}:{h},split=2[tx_v][local_v]; [local_v]scale=220:164[pip_v]"
         cmd.extend(["-filter_complex", filter_str])
+
+        # Mapeo de Audio:
+        # En Windows: DirectShow captura video y audio juntos en input 0 ("0:a?")
+        # En Linux: Video es input 0 y Audio es input 1 ("1:a?")
+        audio_map = "0:a?" if self.is_win else "1:a?"
 
         # Salida 1: Flujo a la red para el compañero (H.264 + AAC MPEG-TS UDP)
         remote_url = f"udp://{remote_ip}:{remote_port}?pkt_size={self.config.get('pkt_size', 1316)}"
         cmd.extend([
             "-map", "[tx_v]",
-            "-map", "0:a?",
+            "-map", audio_map,
             "-vcodec", "libx264",
             "-pix_fmt", pix_fmt,
             "-b:v", bitrate,
@@ -256,7 +270,7 @@ class MediaEngine:
             "ffplay",
             "-window_title", "MeetLAN - Mi Camara (PiP)",
             "-x", "220",
-            "-y", "165",
+            "-y", "164",
             "-left", "180",
             "-top", "590",
             "-alwaysontop",

@@ -216,10 +216,13 @@ class ConfigDialog(tk.Toplevel):
         cb_tune = ttk.Combobox(f, textvariable=self.var_tune, values=["zerolatency", "none"], width=15)
         cb_tune.grid(row=4, column=1, sticky="e", pady=6)
 
-        # Pixel format
+        # Pixel format (H.264 compatible)
         tk.Label(f, text="Espacio de Color (Aceleración SIMD):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=6)
-        self.var_pix_fmt = tk.StringVar(value=self.config.get("pix_fmt", "yuv420p"))
-        cb_pix = ttk.Combobox(f, textvariable=self.var_pix_fmt, values=["yuv420p", "yuyv422", "nv12"], width=15)
+        cur_pix = self.config.get("pix_fmt", "yuv420p")
+        if cur_pix not in ["yuv420p", "nv12", "yuvj420p"]:
+            cur_pix = "yuv420p"
+        self.var_pix_fmt = tk.StringVar(value=cur_pix)
+        cb_pix = ttk.Combobox(f, textvariable=self.var_pix_fmt, values=["yuv420p", "nv12", "yuvj420p"], state="readonly", width=15)
         cb_pix.grid(row=5, column=1, sticky="e", pady=6)
 
     def _build_audio_tab(self, parent):
