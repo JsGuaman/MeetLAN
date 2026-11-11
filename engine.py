@@ -129,14 +129,17 @@ class MediaEngine:
                     v_dev = det_v[0]["ffmpeg_id"]
                     print(f"[ENGINE TX] Cámara previa no encontrada, usando disponible: {det_v[0]['display_name']}")
                     
-                # Si el micrófono configurado es Bluetooth o no está disponible, verificar si responde
+                # Si el micrófono configurado es Bluetooth o externo, verificar si responde
                 if a_dev:
-                    test_p = subprocess.run(
-                        ["ffmpeg", "-hide_banner", "-loglevel", "quiet", "-f", "dshow", "-t", "0.05", "-i", f"audio={a_dev}", "-f", "null", "-"],
-                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.8
-                    )
-                    if test_p.returncode != 0:
-                        raise Exception("Micrófono seleccionado no responde (Bluetooth desconectado)")
+                    friendly_name = win_devs.get("audio_friendly", "").lower()
+                    is_builtin = any(kw in friendly_name or kw in a_dev.lower() for kw in ["integrado", "built-in", "internal", "cirrus", "realtek"])
+                    if not is_builtin:
+                        test_p = subprocess.run(
+                            ["ffmpeg", "-hide_banner", "-loglevel", "quiet", "-f", "dshow", "-t", "0.05", "-i", f"audio={a_dev}", "-f", "null", "-"],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=1.2
+                        )
+                        if test_p.returncode != 0:
+                            raise Exception("Micrófono Bluetooth o externo no responde")
             except Exception as e:
                 print(f"[ENGINE TX] Aviso de hardware de audio: {e}. Activando micrófono integrado...")
                 a_dev = ""
