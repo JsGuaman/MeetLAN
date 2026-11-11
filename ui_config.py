@@ -186,44 +186,51 @@ class ConfigDialog(tk.Toplevel):
         f = tk.Frame(parent, bg="#1e1e2e")
         f.pack(fill="both", expand=True, padx=20, pady=20)
 
+        # Resolución
+        tk.Label(f, text="Resolución de Video:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=6)
+        curr_res = f"{self.config.get('width', 640)}x{self.config.get('height', 480)}"
+        self.var_resolution = tk.StringVar(value=curr_res)
+        cb_res = ttk.Combobox(f, textvariable=self.var_resolution, values=["320x240", "480x360", "640x480", "960x720", "1280x720"], state="readonly", width=15)
+        cb_res.grid(row=0, column=1, sticky="e", pady=6)
+
         # Bitrate
-        tk.Label(f, text="Tasa de Bits de Video (b:v):", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=6)
+        tk.Label(f, text="Tasa de Bits de Video (b:v):", bg="#1e1e2e", fg="#cdd6f4").grid(row=1, column=0, sticky="w", pady=6)
         self.var_bitrate = tk.StringVar(value=self.config.get("video_bitrate", "300k"))
-        cb_bitrate = ttk.Combobox(f, textvariable=self.var_bitrate, values=["100k", "200k", "300k", "500k", "800k", "1200k"], width=15)
-        cb_bitrate.grid(row=0, column=1, sticky="e", pady=6)
+        cb_bitrate = ttk.Combobox(f, textvariable=self.var_bitrate, values=["50k", "100k", "200k", "300k", "500k", "800k", "1200k", "1500k"], width=15)
+        cb_bitrate.grid(row=1, column=1, sticky="e", pady=6)
 
         # FPS
-        tk.Label(f, text="Tasa de Fotogramas (fps):", bg="#1e1e2e", fg="#cdd6f4").grid(row=1, column=0, sticky="w", pady=6)
+        tk.Label(f, text="Tasa de Fotogramas (fps):", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=6)
         self.var_fps = tk.IntVar(value=self.config.get("fps", 24))
         cb_fps = ttk.Combobox(f, textvariable=self.var_fps, values=[15, 20, 24, 30], width=15)
-        cb_fps.grid(row=1, column=1, sticky="e", pady=6)
+        cb_fps.grid(row=2, column=1, sticky="e", pady=6)
 
         # GOP
-        tk.Label(f, text="Tamaño de GoP (Cuadros por intra I):", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=6)
+        tk.Label(f, text="Tamaño de GoP (Cuadros por intra I):", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=6)
         self.var_gop = tk.IntVar(value=self.config.get("gop", 24))
         cb_gop = ttk.Combobox(f, textvariable=self.var_gop, values=[12, 16, 24, 30, 60], width=15)
-        cb_gop.grid(row=2, column=1, sticky="e", pady=6)
+        cb_gop.grid(row=3, column=1, sticky="e", pady=6)
 
         # Preset
-        tk.Label(f, text="Preset de Codificación:", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=6)
+        tk.Label(f, text="Preset de Codificación:", bg="#1e1e2e", fg="#cdd6f4").grid(row=4, column=0, sticky="w", pady=6)
         self.var_preset = tk.StringVar(value=self.config.get("preset", "ultrafast"))
         cb_preset = ttk.Combobox(f, textvariable=self.var_preset, values=["ultrafast", "superfast", "veryfast"], width=15)
-        cb_preset.grid(row=3, column=1, sticky="e", pady=6)
+        cb_preset.grid(row=4, column=1, sticky="e", pady=6)
 
         # Tune
-        tk.Label(f, text="Ajuste de Latencia (Tune):", bg="#1e1e2e", fg="#cdd6f4").grid(row=4, column=0, sticky="w", pady=6)
+        tk.Label(f, text="Ajuste de Latencia (Tune):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=6)
         self.var_tune = tk.StringVar(value=self.config.get("tune", "zerolatency"))
         cb_tune = ttk.Combobox(f, textvariable=self.var_tune, values=["zerolatency", "none"], width=15)
-        cb_tune.grid(row=4, column=1, sticky="e", pady=6)
+        cb_tune.grid(row=5, column=1, sticky="e", pady=6)
 
         # Pixel format (H.264 compatible)
-        tk.Label(f, text="Espacio de Color (Aceleración SIMD):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=6)
+        tk.Label(f, text="Espacio de Color (Aceleración SIMD):", bg="#1e1e2e", fg="#cdd6f4").grid(row=6, column=0, sticky="w", pady=6)
         cur_pix = self.config.get("pix_fmt", "yuv420p")
         if cur_pix not in ["yuv420p", "nv12", "yuvj420p"]:
             cur_pix = "yuv420p"
         self.var_pix_fmt = tk.StringVar(value=cur_pix)
         cb_pix = ttk.Combobox(f, textvariable=self.var_pix_fmt, values=["yuv420p", "nv12", "yuvj420p"], state="readonly", width=15)
-        cb_pix.grid(row=5, column=1, sticky="e", pady=6)
+        cb_pix.grid(row=6, column=1, sticky="e", pady=6)
 
     def _build_audio_tab(self, parent):
         f = tk.Frame(parent, bg="#1e1e2e")
@@ -474,6 +481,11 @@ class ConfigDialog(tk.Toplevel):
             self.config["devices"]["linux"]["audio"] = a_id
 
         # 2. Guardar Video
+        res_str = self.var_resolution.get()
+        if "x" in res_str:
+            rw, rh = res_str.split("x", 1)
+            self.config["width"] = int(rw.strip())
+            self.config["height"] = int(rh.strip())
         self.config["video_bitrate"] = self.var_bitrate.get()
         self.config["video_maxrate"] = self.var_bitrate.get()
         self.config["video_bufsize"] = self.var_bitrate.get()

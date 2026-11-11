@@ -54,6 +54,24 @@ class MediaEngine:
             except Exception:
                 pass
 
+    def restart_tx(self, remote_ip, remote_port):
+        """Reinicia en caliente el transmisor TX con la nueva configuración sin cortar la llamada."""
+        if not self.is_running:
+            return
+        print(f"[ENGINE] Reiniciando transmisor TX en caliente hacia {remote_ip}:{remote_port}...")
+        if self.tx_process and self.tx_process.poll() is None:
+            try:
+                self.tx_process.kill()
+                self.tx_process.wait(timeout=0.5)
+            except Exception:
+                pass
+        if self.tx_log and self.tx_log != subprocess.DEVNULL:
+            try:
+                self.tx_log.close()
+            except Exception:
+                pass
+        self.tx_process = self._spawn_tx(remote_ip, remote_port)
+
     def stop_call(self):
         """Detiene de forma limpia e instantánea todos los procesos de video/audio."""
         self.is_running = False
@@ -129,31 +147,20 @@ class MediaEngine:
                     v_dev = det_v[0]["ffmpeg_id"]
                     print(f"[ENGINE TX] Cámara previa no encontrada, usando disponible: {det_v[0]['display_name']}")
                     
-                # Si el micrófono configurado es Bluetooth o externo, verificar si responde
-                if a_dev:
-                    friendly_name = win_devs.get("audio_friendly", "").lower()
-                    is_builtin = any(kw in friendly_name or kw in a_dev.lower() for kw in ["integrado", "built-in", "internal", "cirrus", "realtek"])
-                    if not is_builtin:
-                        test_p = subprocess.run(
-                            ["ffmpeg", "-hide_banner", "-loglevel", "quiet", "-f", "dshow", "-t", "0.05", "-i", f"audio={a_dev}", "-f", "null", "-"],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=1.2
-                        )
-                        if test_p.returncode != 0:
-                            raise Exception("Micrófono Bluetooth o externo no responde")
-            except Exception as e:
-                print(f"[ENGINE TX] Aviso de hardware de audio: {e}. Activando micrófono integrado...")
-                a_dev = ""
-                try:
+                # Validar audio contra hardware actualmente conectado
+                matched_a = any(d["ffmpeg_id"] == a_dev or d["display_name"] == a_dev or d.get("alt_id") == a_dev for d in det_a)
+                if not matched_a and det_a:
+                    print(f"[ENGINE TX] Micrófono previo desconectado. Conmutando a disponible: {det_a[0]['display_name']}")
+                    a_dev = ""
                     for d in det_a:
                         d_low = d["display_name"].lower()
                         if "cirrus" in d_low or "integrado" in d_low or "realtek" in d_low or "interno" in d_low:
                             a_dev = d["ffmpeg_id"]
-                            print(f"[ENGINE TX] Usando micrófono integrado: {d['display_name']}")
                             break
-                    if not a_dev and det_a:
+                    if not a_dev:
                         a_dev = det_a[0]["ffmpeg_id"]
-                except Exception:
-                    a_dev = ""
+            except Exception as e:
+                print(f"[ENGINE TX] Aviso de hardware de audio: {e}")
 
             if not v_dev:
                 v_dev = "FaceTime HD Camera (Built-in)"
@@ -183,8 +190,9 @@ class MediaEngine:
                 ])
             else:
                 cmd.extend([
-                    "-thread_queue_size", "1024",
+                    "-thread_queue_size", "32",
                     "-f", "v4l2",
+                    "-use_wallclock_as_timestamps", "1",
                     "-video_size", f"{w}x{h}",
                     "-framerate", fps,
                     "-i", v_dev
@@ -199,26 +207,26 @@ class MediaEngine:
             elif raw_a.startswith("alsa:"):
                 alsa_target = raw_a.split(":", 1)[1]
                 cmd.extend([
-                    "-thread_queue_size", "1024",
+                    "-thread_queue_size", "32",
                     "-f", "alsa",
                     "-i", alsa_target
                 ])
             elif raw_a.startswith("pulse:"):
                 pulse_target = raw_a.split(":", 1)[1]
                 cmd.extend([
-                    "-thread_queue_size", "1024",
+                    "-thread_queue_size", "32",
                     "-f", "pulse",
                     "-i", pulse_target
                 ])
             elif raw_a.startswith("hw:") or raw_a.startswith("plughw:"):
                 cmd.extend([
-                    "-thread_queue_size", "1024",
+                    "-thread_queue_size", "32",
                     "-f", "alsa",
                     "-i", raw_a
                 ])
             else:
                 cmd.extend([
-                    "-thread_queue_size", "1024",
+                    "-thread_queue_size", "32",
                     "-f", "pulse",
                     "-i", raw_a
                 ])
@@ -249,7 +257,7 @@ class MediaEngine:
             "-acodec", "aac",
             "-ac", "1",
             "-b:a", audio_b,
-            "-af", "aresample=async=1:first_pts=0",
+            "-af", "aresample=async=1:first_pts=0,volume=2.5",
             "-f", "mpegts",
             "-muxdelay", "0",
             "-muxpreload", "0",
@@ -263,7 +271,8 @@ class MediaEngine:
             "-map", "[pip_v]",
             "-vcodec", "libx264",
             "-pix_fmt", pix_fmt,
-            "-b:v", "400k",
+            "-b:v", "200k",
+            "-threads", "1",
             "-r", fps,
             "-g", "12",
             "-tune", "zerolatency",
@@ -301,7 +310,6 @@ class MediaEngine:
             "-fflags", "nobuffer",
             "-flags", "low_delay",
             "-framedrop",
-            "-sync", "video",
             "-f", "mpegts",
             rx_url
         ]
@@ -317,7 +325,7 @@ class MediaEngine:
         local_pip_port = self.config.get("local_preview_port", 4000)
         pip_url = f"udp://127.0.0.1:{local_pip_port}?overrun_nonfatal=1"
 
-        # Esquina inferior izquierda sobre la ventana principal
+        # Esquina inferior izquierda sobre la ventana principal (solo video, sin audio)
         cmd = [
             "ffplay",
             "-window_title", "MeetLAN - Mi Camara (PiP)",
@@ -325,17 +333,18 @@ class MediaEngine:
             "-y", "164",
             "-left", "180",
             "-top", "590",
-            "-alwaysontop",
             "-noborder",
+            "-an",
             "-probesize", "32768",
             "-analyzeduration", "0",
             "-fflags", "nobuffer",
             "-flags", "low_delay",
             "-framedrop",
-            "-sync", "video",
             "-f", "mpegts",
             pip_url
         ]
+        if self.is_win:
+            cmd.insert(cmd.index("-an"), "-alwaysontop")
         print(f"[ENGINE PiP] Ejecutando: {' '.join(cmd)}")
         try:
             self.pip_log = open("ffplay_pip.log", "w", encoding="utf-8", errors="replace")

@@ -267,6 +267,28 @@ class MeetLANApp:
             self.entry_manual_tx_port.delete(0, tk.END)
             self.entry_manual_tx_port.insert(0, str(new_cfg.get("tx_port", 5000)))
 
+        # Actualizar transmisión en caliente si estamos dentro de una llamada activa
+        if self.engine.is_running and self.active_peer:
+            remote_ip = self.active_peer.get("ip")
+            remote_tx = int(self.active_peer.get("remote_rx_port", self.config.get("tx_port", 5200)))
+            self.engine.restart_tx(remote_ip, remote_tx)
+
+    def _on_quick_quality_change(self, bitrate, width, height):
+        """Ajusta en tiempo real la tasa de bits y resolución para demostración."""
+        self.config["video_bitrate"] = bitrate
+        self.config["video_maxrate"] = bitrate
+        self.config["video_bufsize"] = bitrate
+        self.config["width"] = width
+        self.config["height"] = height
+        save_config(self.config)
+        self.engine.config = self.config
+        if self.engine.is_running and self.active_peer:
+            remote_ip = self.active_peer.get("ip")
+            remote_tx = int(self.active_peer.get("remote_rx_port", self.config.get("tx_port", 5200)))
+            self.engine.restart_tx(remote_ip, remote_tx)
+            self.status_bar.config(text=f"Calidad adaptada en vivo: {bitrate} ({width}x{height})", fg="#89b4fa")
+            self.root.after(3000, self._update_status_bar)
+
     def _update_status_bar(self):
         st = self.signaling.status
         if st == "AVAILABLE":
@@ -539,9 +561,11 @@ class MeetLANApp:
         print(f"        -> TX Remoto: Transmitiendo hacia {remote_ip}:{remote_tx}")
         self.engine.start_call(remote_ip, remote_tx, local_rx)
 
-        # Mostrar barra flotante de control
+        # Mostrar barra flotante de control con selector en caliente
         self.call_control_bar = CallControlBar(
-            self.root, self.active_peer, on_hangup=self._on_local_hangup
+            self.root, self.active_peer,
+            on_hangup=self._on_local_hangup,
+            on_change_quality=self._on_quick_quality_change
         )
 
     def _on_local_hangup(self):
